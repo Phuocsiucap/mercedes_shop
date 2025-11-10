@@ -1,4 +1,4 @@
-package org.mec.com.entity;
+package org.example.entity;
 
 
 import lombok.AllArgsConstructor;
