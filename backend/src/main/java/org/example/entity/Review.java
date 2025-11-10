@@ -1,5 +1,4 @@
-package org.mec.com.entity;
-
+package org.example.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,8 +12,8 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "favorites")
-public class Favorite {
+@Document(collection = "reviews")
+public class Review {
 
     @Id
     private String id;
@@ -25,5 +24,9 @@ public class Favorite {
     @DBRef
     private Car car;
 
-    private LocalDateTime addedAt;
+    private String content;
+
+    private Integer rating; // 1-5 stars
+
+    private LocalDateTime createdAt;
 }

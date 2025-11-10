@@ -1,4 +1,5 @@
-package org.mec.com.entity;
+package org.example.entity;
+
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -7,26 +8,24 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "reviews")
-public class Review {
+@Document(collection = "order_details")
+public class OrderDetail {
 
     @Id
     private String id;
 
     @DBRef
-    private User user;
+    private Order order;
 
     @DBRef
     private Car car;
 
-    private String content;
+    private Integer quantity;
 
-    private Integer rating; // 1-5 stars
-
-    private LocalDateTime createdAt;
+    private BigDecimal unitPrice;
 }

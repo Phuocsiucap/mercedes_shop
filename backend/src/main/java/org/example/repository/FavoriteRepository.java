@@ -1,8 +1,8 @@
-package org.mec.com.repository;
+package org.example.repository;
 
-import org.mec.com.entity.Car;
-import org.mec.com.entity.Favorite;
-import org.mec.com.entity.User;
+import org.example.entity.Car;
+import org.example.entity.Favorite;
+import org.example.entity.User;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
