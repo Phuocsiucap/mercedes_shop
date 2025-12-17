@@ -12,39 +12,75 @@ const AdminHome = () => {
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-    fetchRecentOrders();
-  }, []);
+  // helper để xác định số lượng từ nhiều dạng response khác nhau
+  const extractCount = (res) => {
+    if (!res) return 0;
+    const d = res.data;
+    if (!d) return 0;
+    if (Array.isArray(d)) return d.length;
+    if (Array.isArray(d.data)) return d.data.length;
+    if (d.data && Array.isArray(d.data.content)) return d.data.content.length;
+    if (Array.isArray(d.content)) return d.content.length;
+    if (typeof d.total === 'number') return d.total;
+    if (typeof d.totalItems === 'number') return d.totalItems;
+    if (typeof d.count === 'number') return d.count;
+    return 0;
+  };
 
   const fetchStats = async () => {
     try {
+      setLoading(true);
       const [users, cars, orders] = await Promise.all([
         axios.get('/users'),
         axios.get('/cars'),
         axios.get('/orders'),
       ]);
 
-      const totalRevenue = (orders.data.data || []).reduce(
-        (sum, order) => sum + (order.totalAmount || 0),
+      const carsCount = extractCount(cars);
+      const ordersData = orders.data?.data || (Array.isArray(orders.data) ? orders.data : []);
+      const usersData = users.data?.data || (Array.isArray(users.data) ? users.data : []);
+
+      const totalRevenue = (ordersData || []).reduce(
+        (sum, order) => sum + Number(order?.totalAmount ?? 0),
         0
       );
 
       setStats({
-        totalUsers: users.data.data?.length || 0,
-        totalCars: cars.data.data?.length || 0,
-        totalOrders: orders.data.data?.length || 0,
+        totalUsers: usersData.length || 0,
+        totalCars: carsCount || 0,
+        totalOrders: ordersData.length || 0,
         totalRevenue: totalRevenue,
       });
     } catch (err) {
       console.error('Error fetching stats:', err);
+      setStats({
+        totalUsers: 0,
+        totalCars: 0,
+        totalOrders: 0,
+        totalRevenue: 0,
+      });
+    } finally {
+      setLoading(false);
     }
   };
+
+  // polling ngắn để dashboard tự cập nhật khi có thay đổi ở admin khác
+  useEffect(() => {
+    fetchStats();
+    const intervalId = setInterval(() => {
+      fetchStats();
+    }, 5000); // refresh mỗi 5 giây (tùy chỉnh nếu cần)
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    fetchRecentOrders();
+  }, []);
 
   const fetchRecentOrders = async () => {
     try {
       const response = await axios.get('/orders');
-      setRecentOrders((response.data.data || []).slice(0, 5));
+      setRecentOrders((response.data.data || (Array.isArray(response.data) ? response.data : [])).slice(0, 5));
     } catch (err) {
       console.error('Error fetching orders:', err);
     } finally {
@@ -53,10 +89,11 @@ const AdminHome = () => {
   };
 
   const formatPrice = (price) => {
+    const val = Number(price) || 0;
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
-    }).format(price);
+    }).format(val);
   };
 
   const getStatusColor = (status) => {

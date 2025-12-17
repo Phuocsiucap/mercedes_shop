@@ -164,9 +164,9 @@ const AdminCars = () => {
         <h1 className="text-2xl font-bold text-gray-800">Quản Lý Ô Tô</h1>
         <button
           onClick={() => (showForm ? resetForm() : setShowForm(true))}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-semibold"
         >
-          <FaPlus /> {showForm ? 'Hủy' : 'Thêm Ô Tó'}
+          <FaPlus /> {showForm ? 'Hủy' : 'Thêm Ô Tô'}
         </button>
       </div>
 
@@ -178,33 +178,34 @@ const AdminCars = () => {
 
       {/* Form */}
       {showForm && (
-        <div className="bg-white rounded-lg shadow-md p-6 max-h-96 overflow-y-auto">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">
-            {editingId ? 'Cập Nhật Ô Tó' : 'Thêm Ô Tó Mới'}
+        <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
+            {editingId ? '✏️ Cập Nhật Ô Tô' : '➕ Thêm Ô Tô Mới'}
           </h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên Xe
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Tên Xe <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="Nhập tên xe"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Danh Mục
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Danh Mục <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.categoryId}
                 onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               >
-                <option value="">Chọn danh mục</option>
+                <option value="">-- Chọn danh mục --</option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
@@ -214,112 +215,120 @@ const AdminCars = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Giá
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Giá <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="0"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Năm Sản Xuất
               </label>
               <input
                 type="number"
                 value={formData.manufactureYear}
                 onChange={(e) => setFormData({ ...formData, manufactureYear: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="2024"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Màu Sắc
               </label>
               <input
                 type="text"
                 value={formData.color}
                 onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="Đen, Trắng, ..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Động Cơ
               </label>
               <input
                 type="text"
                 value={formData.engine}
                 onChange={(e) => setFormData({ ...formData, engine: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="2.0L, 3.0L, ..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Hộp Số
               </label>
               <input
                 type="text"
                 value={formData.transmission}
                 onChange={(e) => setFormData({ ...formData, transmission: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="Tự động, Số tay, ..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Số Chỗ Ngồi
               </label>
               <input
                 type="number"
                 value={formData.seats}
                 onChange={(e) => setFormData({ ...formData, seats: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="5"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 URL Hình Ảnh
               </label>
               <input
                 type="text"
                 value={formData.image}
                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="https://example.com/image.jpg"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Mô Tả
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                rows="2"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                rows="3"
+                placeholder="Nhập mô tả chi tiết về xe..."
               />
             </div>
 
-            <div className="md:col-span-2 flex gap-2">
+            <div className="md:col-span-2 flex gap-3 pt-4">
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition font-semibold flex items-center justify-center gap-2"
               >
-                {editingId ? 'Cập Nhật' : 'Thêm'}
+                {editingId ? '💾 Cập Nhật' : '➕ Thêm Mới'}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-6 py-2 rounded-lg transition"
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2.5 rounded-lg transition font-semibold"
               >
                 Hủy
               </button>
@@ -329,7 +338,7 @@ const AdminCars = () => {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
@@ -337,31 +346,33 @@ const AdminCars = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-100 border-b-2 border-gray-300">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Tên
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Danh Mục
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Giá
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Năm
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Hành Động
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {cars.map((car) => (
-                  <tr key={car.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-600">{car.name}</td>
+                  <tr key={car.id} className="hover:bg-blue-50 transition">
+                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {categories.find((c) => c.id === car.categoryId)?.name || '-'}
+                      <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
+                        {categories.find((c) => c.id === car.categoryId)?.name || '-'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                       {formatPrice(car.price)}
@@ -370,16 +381,18 @@ const AdminCars = () => {
                       {car.manufactureYear}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-2">
+                      <div className="flex gap-3">
                         <button
                           onClick={() => handleEdit(car)}
-                          className="text-blue-600 hover:text-blue-700"
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 p-2 rounded-lg transition font-semibold"
+                          title="Cập nhật"
                         >
                           <FaEdit />
                         </button>
                         <button
                           onClick={() => handleDelete(car.id)}
-                          className="text-red-600 hover:text-red-700"
+                          className="text-red-600 hover:text-red-800 hover:bg-red-100 p-2 rounded-lg transition font-semibold"
+                          title="Xóa"
                         >
                           <FaTrash />
                         </button>
@@ -390,8 +403,9 @@ const AdminCars = () => {
               </tbody>
             </table>
             {cars.length === 0 && (
-              <div className="text-center py-8 text-gray-600">
-                Không có ô tó nào
+              <div className="text-center py-12 text-gray-500">
+                <p className="text-lg">Chưa có ô tô nào</p>
+                <p className="text-sm">Nhấn nút "Thêm Ô Tô" để thêm mới</p>
               </div>
             )}
           </div>
