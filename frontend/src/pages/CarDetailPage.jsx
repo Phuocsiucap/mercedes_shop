@@ -18,6 +18,7 @@ const CarDetailPage = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewData, setReviewData] = useState({ content: '', rating: 5 });
+  const [displayedReviews, setDisplayedReviews] = useState(5);
 
   useEffect(() => {
     fetchCarDetail();
@@ -149,10 +150,10 @@ const CarDetailPage = () => {
                 <img
                   src={car.image}
                   alt={car.name}
-                  className="w-full h-96 object-cover rounded-lg"
+                  className="w-full h-[500px] object-cover object-center rounded-lg shadow-lg"
                 />
               ) : (
-                <div className="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+                <div className="w-full h-[500px] bg-gray-200 rounded-lg flex items-center justify-center">
                   <span className="text-9xl">🚗</span>
                 </div>
               )}
@@ -171,9 +172,11 @@ const CarDetailPage = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-4">{car.name}</h1>
 
               <div className="flex items-center mb-4">
-                <div className="flex items-center bg-yellow-400 text-white px-3 py-1 rounded-full">
+                <div className="flex items-center text-yellow-500 px-3 py-1 rounded-full">
                   <span className="text-sm font-semibold">
-                    ⭐ {car.averageRating > 0 ? car.averageRating.toFixed(1) : 'N/A'}
+                    {car.averageRating > 0 
+                      ? `⭐ ${car.averageRating.toFixed(1)}` 
+                      : '☆☆☆☆☆'}
                   </span>
                 </div>
                 <span className="ml-3 text-gray-600">({car.reviewCount || 0} đánh giá)</span>
@@ -192,24 +195,49 @@ const CarDetailPage = () => {
               {/* Specifications */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Năm sản xuất</p>
-                  <p className="font-semibold">{car.manufactureYear}</p>
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">📆</span>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Năm sản xuất</p>
+                      <p className="font-semibold">{car.manufactureYear}</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Màu sắc</p>
-                  <p className="font-semibold">{car.color}</p>
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">🎨</span>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Màu sắc</p>
+                      <p className="font-semibold">{car.color}</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Động cơ</p>
-                  <p className="font-semibold">{car.engine}</p>
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">🔧</span>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Động cơ</p>
+                      <p className="font-semibold">{car.engine}</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Hộp số</p>
-                  <p className="font-semibold">{car.transmission}</p>
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">⚡</span>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Hộp số</p>
+                      <p className="font-semibold">{car.transmission}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Số chỗ ngồi</p>
-                  <p className="font-semibold">{car.seats} chỗ</p>
+                <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">👥</span>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Số chỗ ngồi</p>
+                      <p className="font-semibold">{car.seats} chỗ</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -242,18 +270,18 @@ const CarDetailPage = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleAddToCart}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition"
-                >
-                  Thêm vào giỏ
-                </button>
+              <div className="flex gap-4">
                 <button
                   onClick={handleBuyNow}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
                 >
                   Mua ngay
+                </button>
+                <button
+                  onClick={handleAddToCart}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition"
+                >
+                  Thêm vào giỏ
                 </button>
               </div>
             </div>
@@ -339,24 +367,36 @@ const CarDetailPage = () => {
             {reviews.length === 0 ? (
               <p className="text-center text-gray-600 py-8">Chưa có đánh giá nào</p>
             ) : (
-              reviews.map((review) => (
-                <div key={review.id} className="border-b pb-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-gray-900">{review.userName}</p>
-                      <div className="flex items-center mt-1">
-                        <span className="text-yellow-500">
-                          {'⭐'.repeat(review.rating)}
-                        </span>
-                        <span className="text-gray-500 text-sm ml-2">
-                          {new Date(review.createdAt).toLocaleDateString('vi-VN')}
-                        </span>
+              <>
+                {reviews.slice(0, displayedReviews).map((review) => (
+                  <div key={review.id} className="border-b pb-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-gray-900">{review.userName}</p>
+                        <div className="flex items-center mt-1">
+                          <span className="text-yellow-500">
+                            {'⭐'.repeat(review.rating)}
+                          </span>
+                          <span className="text-gray-500 text-sm ml-2">
+                            {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
                       </div>
                     </div>
+                    <p className="text-gray-700">{review.content}</p>
                   </div>
-                  <p className="text-gray-700">{review.content}</p>
-                </div>
-              ))
+                ))}
+                {displayedReviews < reviews.length && (
+                  <div className="text-center mt-6">
+                    <button
+                      onClick={() => setDisplayedReviews(displayedReviews + 5)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg"
+                    >
+                      Xem thêm đánh giá
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
