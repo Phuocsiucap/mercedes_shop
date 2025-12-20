@@ -1,36 +1,65 @@
 import { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { FaEye, FaEdit } from 'react-icons/fa';
+import { FaEye, FaEdit, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
+import AdminFilter from '../../components/AdminFilter';
+import AdminPagination from '../../components/AdminPagination';
+import { useAdminFilter } from '../../hooks/useAdminFilter';
+import { exportToExcel, exportConfigs } from '../../utils/exportUtils';
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [pagination, setPagination] = useState({
+    totalElements: 0,
+    totalPages: 0,
+    currentPage: 0,
+    size: 10
+  });
+
+  // Filter hook
+  const {
+    filters,
+    searchTerm,
+    sortBy,
+    sortDir,
+    page,
+    size,
+    handleFilterChange,
+    handleSearch,
+    handleSort,
+    handlePageChange,
+    handleSizeChange,
+    queryParams
+  } = useAdminFilter();
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [queryParams]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/orders');
-      // Handle multiple response formats
-      let data = [];
+      const params = new URLSearchParams(queryParams);
+      const response = await axios.get(`/admin/orders?${params.toString()}`);
+      
       if (response.data?.data?.content) {
-        data = response.data.data.content;
-      } else if (Array.isArray(response.data?.data)) {
-        data = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        data = response.data;
+        setOrders(response.data.data.content);
+        setPagination({
+          totalElements: response.data.data.totalElements,
+          totalPages: response.data.data.totalPages,
+          currentPage: response.data.data.number,
+          size: response.data.data.size
+        });
+      } else {
+        setOrders([]);
+        setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
       }
-      setOrders(data);
-      console.log('Orders fetched:', data);
     } catch (err) {
       console.error('Error fetching orders:', err);
       setOrders([]);
+      setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
     } finally {
       setLoading(false);
     }
@@ -85,32 +114,61 @@ const AdminOrders = () => {
     return statusMap[status] || status;
   };
 
-  const filteredOrders = orders.filter(
-    (order) =>
-      !filter || order.status === filter || order.id.toString().includes(filter)
-  );
+  const getSortIcon = (field) => {
+    if (sortBy !== field) return <FaSort className="opacity-50" />;
+    return sortDir === 'ASC' ? <FaSortUp /> : <FaSortDown />;
+  };
+
+  // Filter configuration
+  const filterConfig = [
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'PENDING', label: 'Chờ Xác Nhận' },
+        { value: 'DELIVERING', label: 'Đang Giao' },
+        { value: 'COMPLETED', label: 'Hoàn Thành' },
+        { value: 'CANCELLED', label: 'Hủy' }
+      ]
+    },
+    {
+      key: 'totalAmount',
+      label: 'Tổng tiền (VND)',
+      type: 'range'
+    },
+    {
+      key: 'paymentMethod',
+      label: 'Phương thức thanh toán',
+      type: 'select',
+      options: [
+        { value: 'COD', label: 'Thanh toán khi nhận hàng' },
+        { value: 'BANK_TRANSFER', label: 'Chuyển khoản' },
+        { value: 'CREDIT_CARD', label: 'Thẻ tín dụng' }
+      ]
+    }
+  ];
+
+  const handleExport = () => {
+    exportToExcel(orders, exportConfigs.orders.filename, exportConfigs.orders.headers);
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800 mb-4">Quản Lý Đơn Hàng</h1>
-
-        {/* Filters */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {['', 'PENDING', 'DELIVERING', 'COMPLETED', 'CANCELLED'].map((status) => (
-            <button
-              key={status || 'all'}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium transition ${filter === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-            >
-              {status ? getStatusText(status) : 'Tất Cả'}
-            </button>
-          ))}
-        </div>
       </div>
+
+      {/* Filter Component */}
+      <AdminFilter
+        filters={filterConfig}
+        onFilterChange={handleFilterChange}
+        onSearch={handleSearch}
+        searchPlaceholder="Tìm kiếm theo tên khách hàng, email, địa chỉ..."
+        showDateRange={true}
+        showExport={true}
+        onExport={handleExport}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -123,20 +181,43 @@ const AdminOrders = () => {
             <table className="w-full">
               <thead className="bg-gray-100 border-b-2 border-gray-300">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    ID
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('id')}
+                  >
+                    <div className="flex items-center gap-2">
+                      ID {getSortIcon('id')}
+                    </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Ngày Đặt
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('orderDate')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Ngày Đặt {getSortIcon('orderDate')}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Khách Hàng
                   </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Tổng Tiền
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('totalAmount')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Tổng Tiền {getSortIcon('totalAmount')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Trạng Thái {getSortIcon('status')}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Trạng Thái
+                    Thông Tin
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Hành Động
@@ -144,7 +225,7 @@ const AdminOrders = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredOrders.map((order) => (
+                {orders.map((order) => (
                   <tr key={order.id} className="hover:bg-blue-50 transition">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       #{order.id}
@@ -153,7 +234,7 @@ const AdminOrders = () => {
                       {new Date(order.orderDate).toLocaleDateString('vi-VN')}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {order.user?.fullName || 'N/A'}
+                      {order.userName || 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                       {formatPrice(order.totalAmount)}
@@ -162,6 +243,18 @@ const AdminOrders = () => {
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
                         {getStatusText(order.status)}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">
+                            {order.totalItems || 0} sản phẩm
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {order.daysSinceOrder} ngày trước
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <button
@@ -175,7 +268,7 @@ const AdminOrders = () => {
                 ))}
               </tbody>
             </table>
-            {filteredOrders.length === 0 && (
+            {orders.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-lg">Không có đơn hàng nào</p>
               </div>
@@ -216,7 +309,7 @@ const AdminOrders = () => {
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="text-gray-600 text-sm">Khách Hàng</p>
                   <p className="font-semibold text-gray-900">
-                    {selectedOrder.user?.fullName}
+                    {selectedOrder.userName}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -242,9 +335,9 @@ const AdminOrders = () => {
                   {selectedOrder.orderDetails && selectedOrder.orderDetails.length > 0 ? (
                     selectedOrder.orderDetails.map((item, idx) => (
                       <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                        <p className="font-semibold text-gray-800">{item.car?.name || 'N/A'}</p>
+                        <p className="font-semibold text-gray-800">{item.carName || 'N/A'}</p>
                         <p className="text-sm text-gray-600">
-                          Số lượng: {item.quantity} - Giá: {formatPrice(item.price)}
+                          Số lượng: {item.quantity} - Giá: {formatPrice(item.unitPrice)} - Tổng: {formatPrice(item.subtotal)}
                         </p>
                       </div>
                     ))
@@ -283,6 +376,16 @@ const AdminOrders = () => {
           </div>
         </div>
       )}
+
+      {/* Pagination */}
+      <AdminPagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalElements={pagination.totalElements}
+        size={pagination.size}
+        onPageChange={handlePageChange}
+        onSizeChange={handleSizeChange}
+      />
     </div>
   );
 };

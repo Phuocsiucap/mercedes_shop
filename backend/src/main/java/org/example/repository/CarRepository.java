@@ -30,5 +30,7 @@ public interface CarRepository extends MongoRepository<Car, String> {
     @Query("{ 'name': { $regex: ?0, $options: 'i' }, 'price': { $gte: ?1, $lte: ?2 } }")
     Page<Car> searchByNameAndPriceRange(String name, BigDecimal minPrice, BigDecimal maxPrice, Pageable pageable);
 
+    // Sẽ được implement trong service layer với Criteria API
+
     List<Car> findTop5ByOrderByIdDesc();
 }

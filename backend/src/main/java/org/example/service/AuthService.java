@@ -70,7 +70,8 @@ public class AuthService {
                 savedUser.getEmail(),
                 savedUser.getPhoneNumber(),
                 savedUser.getAddress(),
-                savedUser.getRole());
+                savedUser.getRole(),
+                savedUser.getVerified());
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -102,7 +103,10 @@ public class AuthService {
                 userPrincipal.getAuthorities().stream()
                         .findFirst()
                         .map(auth -> User.Role.valueOf(auth.getAuthority().replace("ROLE_", "")))
-                        .orElse(User.Role.CUSTOMER));
+                        .orElse(User.Role.CUSTOMER),
+                userRepository.findById(userPrincipal.getId())
+                        .map(User::getVerified)
+                        .orElse(false));
     }
 
     public User getCurrentUser() {
@@ -125,5 +129,49 @@ public class AuthService {
                 .revoked(false)
                 .build();
         tokenService.save(token);
+    }
+
+    public AuthResponse authenticateWithOAuth(org.example.dto.request.OAuthRequest request) {
+        // Check if user exists by email
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+
+        if (user == null) {
+            // Create new user from OAuth
+            user = new User();
+            user.setFullName(request.getName());
+            user.setEmail(request.getEmail());
+            user.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString())); // Random password
+            user.setRole(User.Role.CUSTOMER);
+            user.setVerified(true); // OAuth users are verified
+            user.setProvider(request.getProvider());
+            user.setProviderId(request.getProviderId());
+            user.setCreatedAt(LocalDateTime.now());
+            user = userRepository.save(user);
+        } else {
+            // Update existing user's OAuth info if needed
+            if (user.getProvider() == null || user.getProvider().equals("LOCAL")) {
+                user.setProvider(request.getProvider());
+                user.setProviderId(request.getProviderId());
+                user.setVerified(true);
+                user = userRepository.save(user);
+            }
+        }
+
+        // Generate JWT token
+        String token = tokenProvider.generateTokenFromUserId(user.getId());
+
+        // Revoke all existing tokens
+        tokenService.revokeAllUserTokens(user.getId());
+        saveUserToken(user, token);
+
+        return new AuthResponse(
+                token,
+                user.getId(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getPhoneNumber(),
+                user.getAddress(),
+                user.getRole(),
+                user.getVerified());
     }
 }

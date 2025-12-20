@@ -56,6 +56,9 @@ public class CarController {
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) String color,
+            @RequestParam(required = false) String engine,
+            @RequestParam(required = false) String transmission,
+            @RequestParam(required = false) Integer seats,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(defaultValue = "id") String sortBy,
@@ -66,7 +69,35 @@ public class CarController {
                     Sort.by(sortBy).descending();
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<CarResponse> cars = carService.searchCars(keyword, categoryId, minPrice, maxPrice, year, color, pageable);
+        Page<CarResponse> cars = carService.searchCarsAdvanced(keyword, categoryId, minPrice, maxPrice, 
+                                                              year, color, engine, transmission, seats, pageable);
+        return ResponseEntity.ok(ApiResponse.success(cars));
+    }
+
+    @GetMapping("/admin/filter")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Page<CarResponse>>> getFilteredCarsForAdmin(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String categoryId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String color,
+            @RequestParam(required = false) String engine,
+            @RequestParam(required = false) String transmission,
+            @RequestParam(required = false) Integer seats,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("ASC") ?
+                    Sort.by(sortBy).ascending() :
+                    Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<CarResponse> cars = carService.searchCarsAdvanced(keyword, categoryId, minPrice, maxPrice, 
+                                                              year, color, engine, transmission, seats, pageable);
         return ResponseEntity.ok(ApiResponse.success(cars));
     }
 

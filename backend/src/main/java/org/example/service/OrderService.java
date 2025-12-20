@@ -10,9 +10,18 @@ import org.example.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +39,9 @@ public class OrderService {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     public List<OrderResponse> getUserOrders() {
         User currentUser = authService.getCurrentUser();
@@ -154,6 +166,69 @@ public class OrderService {
         return orderRepository.findByStatus(status).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    public Page<OrderResponse> getFilteredOrders(String keyword, String status, String fromDate, String toDate,
+                                                Double minAmount, Double maxAmount, Pageable pageable) {
+        List<Criteria> criteriaList = new ArrayList<>();
+        
+        // Keyword search (user fullName, email, deliveryAddress)
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            Criteria keywordCriteria = new Criteria().orOperator(
+                Criteria.where("user.fullName").regex(keyword, "i"),
+                Criteria.where("user.email").regex(keyword, "i"),
+                Criteria.where("deliveryAddress").regex(keyword, "i")
+            );
+            criteriaList.add(keywordCriteria);
+        }
+        
+        // Status filter
+        if (status != null && !status.trim().isEmpty()) {
+            Order.OrderStatus orderStatus = Order.OrderStatus.valueOf(status);
+            criteriaList.add(Criteria.where("status").is(orderStatus));
+        }
+        
+        // Date range filter
+        if (fromDate != null && !fromDate.trim().isEmpty()) {
+            LocalDate from = LocalDate.parse(fromDate, DateTimeFormatter.ISO_LOCAL_DATE);
+            criteriaList.add(Criteria.where("orderDate").gte(from.atStartOfDay()));
+        }
+        
+        if (toDate != null && !toDate.trim().isEmpty()) {
+            LocalDate to = LocalDate.parse(toDate, DateTimeFormatter.ISO_LOCAL_DATE);
+            criteriaList.add(Criteria.where("orderDate").lte(to.atTime(23, 59, 59)));
+        }
+        
+        // Amount range filter
+        if (minAmount != null) {
+            BigDecimal min = BigDecimal.valueOf(minAmount);
+            criteriaList.add(Criteria.where("totalAmount").gte(min));
+        }
+        
+        if (maxAmount != null) {
+            BigDecimal max = BigDecimal.valueOf(maxAmount);
+            criteriaList.add(Criteria.where("totalAmount").lte(max));
+        }
+        
+        // Build final query
+        Query query = new Query();
+        if (!criteriaList.isEmpty()) {
+            query.addCriteria(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
+        }
+        
+        // Add pagination and sorting
+        query.with(pageable);
+        
+        // Execute query
+        List<Order> orders = mongoTemplate.find(query, Order.class);
+        long total = mongoTemplate.count(query.skip(0).limit(0), Order.class);
+        
+        // Convert to response
+        List<OrderResponse> orderResponses = orders.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+        
+        return new PageImpl<>(orderResponses, pageable, total);
     }
 
     private OrderResponse mapToResponse(Order order) {

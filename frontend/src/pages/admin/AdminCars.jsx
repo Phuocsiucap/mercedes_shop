@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaSort, FaSortUp, FaSortDown, FaEye } from 'react-icons/fa';
+import AdminFilter from '../../components/AdminFilter';
+import AdminPagination from '../../components/AdminPagination';
+import CarDetailModal from '../../components/CarDetailModal';
+import { useAdminFilter } from '../../hooks/useAdminFilter';
+import { exportToExcel, exportConfigs } from '../../utils/exportUtils';
 
 const AdminCars = () => {
   const [cars, setCars] = useState([]);
@@ -21,34 +26,61 @@ const AdminCars = () => {
     description: '',
   });
   const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({
+    totalElements: 0,
+    totalPages: 0,
+    currentPage: 0,
+    size: 10
+  });
+  const [selectedCar, setSelectedCar] = useState(null);
+  const [showDetail, setShowDetail] = useState(false);
+
+  // Filter hook
+  const {
+    filters,
+    searchTerm,
+    sortBy,
+    sortDir,
+    page,
+    size,
+    handleFilterChange,
+    handleSearch,
+    handleSort,
+    handlePageChange,
+    handleSizeChange,
+    queryParams
+  } = useAdminFilter();
 
   useEffect(() => {
     fetchCars();
     fetchCategories();
-  }, []);
+  }, [queryParams]);
 
   const fetchCars = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/cars');
+      const params = new URLSearchParams(queryParams);
+      const response = await axios.get(`/admin/cars?${params.toString()}`);
+      
       // Handle paginated response format
-      let data = [];
       if (response.data?.data?.content) {
-        // Pagination format: {content: [...], pageable: {...}, ...}
-        data = response.data.data.content;
-      } else if (Array.isArray(response.data?.data)) {
-        // Array format: response.data.data
-        data = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        // Direct array format: response.data
-        data = response.data;
+        setCars(response.data.data.content);
+        setPagination({
+          totalElements: response.data.data.totalElements,
+          totalPages: response.data.data.totalPages,
+          currentPage: response.data.data.number,
+          size: response.data.data.size
+        });
+      } else {
+        setCars([]);
+        setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
       }
-      setCars(data);
       setError(null);
     } catch (err) {
       console.error('Error fetching cars:', err);
       setError('Không thể tải danh sách xe');
-      setCars([]); // Set empty array on error
+      setCars([]);
+      setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
     } finally {
       setLoading(false);
     }
@@ -106,7 +138,7 @@ const AdminCars = () => {
   const handleEdit = (car) => {
     setFormData({
       name: car.name,
-      categoryId: car.categoryId,
+      categoryId: car.categoryId || '',
       price: car.price,
       manufactureYear: car.manufactureYear,
       color: car.color,
@@ -158,6 +190,74 @@ const AdminCars = () => {
     }).format(price);
   };
 
+  const getSortIcon = (field) => {
+    if (sortBy !== field) return <FaSort className="opacity-50" />;
+    return sortDir === 'ASC' ? <FaSortUp /> : <FaSortDown />;
+  };
+
+  // Filter configuration
+  const filterConfig = [
+    {
+      key: 'categoryId',
+      label: 'Danh mục',
+      type: 'select',
+      options: categories.map(cat => ({ value: cat.id, label: cat.name }))
+    },
+    {
+      key: 'price',
+      label: 'Giá (VND)',
+      type: 'range'
+    },
+    {
+      key: 'year',
+      label: 'Năm sản xuất',
+      type: 'number',
+      placeholder: 'Nhập năm'
+    },
+    {
+      key: 'color',
+      label: 'Màu sắc',
+      type: 'text',
+      placeholder: 'Nhập màu sắc'
+    },
+    {
+      key: 'engine',
+      label: 'Động cơ',
+      type: 'text',
+      placeholder: 'Nhập loại động cơ'
+    },
+    {
+      key: 'transmission',
+      label: 'Hộp số',
+      type: 'text',
+      placeholder: 'Nhập loại hộp số'
+    },
+    {
+      key: 'seats',
+      label: 'Số chỗ ngồi',
+      type: 'number',
+      placeholder: 'Nhập số chỗ'
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'ACTIVE', label: 'Hoạt động' },
+        { value: 'INACTIVE', label: 'Không hoạt động' }
+      ]
+    }
+  ];
+
+  const handleExport = () => {
+    exportToExcel(cars, exportConfigs.cars.filename, exportConfigs.cars.headers);
+  };
+
+  const handleViewDetail = (car) => {
+    setSelectedCar(car);
+    setShowDetail(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -169,6 +269,16 @@ const AdminCars = () => {
           <FaPlus /> {showForm ? 'Hủy' : 'Thêm Ô Tô'}
         </button>
       </div>
+
+      {/* Filter Component */}
+      <AdminFilter
+        filters={filterConfig}
+        onFilterChange={handleFilterChange}
+        onSearch={handleSearch}
+        searchPlaceholder="Tìm kiếm theo tên xe, mô tả..."
+        showExport={true}
+        onExport={handleExport}
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -348,17 +458,38 @@ const AdminCars = () => {
             <table className="w-full">
               <thead className="bg-gray-100 border-b-2 border-gray-300">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Tên
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Tên {getSortIcon('name')}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Danh Mục
                   </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Giá
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('price')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Giá {getSortIcon('price')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
+                    onClick={() => handleSort('manufactureYear')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Năm {getSortIcon('manufactureYear')}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Năm
+                    Đánh Giá
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
+                    Đơn Hàng
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Hành Động
@@ -371,7 +502,7 @@ const AdminCars = () => {
                     <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                        {categories.find((c) => c.id === car.categoryId)?.name || '-'}
+                        {car.categoryName || '-'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
@@ -380,8 +511,27 @@ const AdminCars = () => {
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {car.manufactureYear}
                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <span className="text-yellow-500">⭐</span>
+                        <span>{car.averageRating?.toFixed(1) || '0.0'}</span>
+                        <span className="text-gray-400">({car.reviewCount || 0})</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                        {car.totalOrders || 0} đơn
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleViewDetail(car)}
+                          className="text-green-600 hover:text-green-800 hover:bg-green-100 p-2 rounded-lg transition font-semibold"
+                          title="Xem chi tiết"
+                        >
+                          <FaEye />
+                        </button>
                         <button
                           onClick={() => handleEdit(car)}
                           className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 p-2 rounded-lg transition font-semibold"
@@ -411,6 +561,23 @@ const AdminCars = () => {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      <AdminPagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalElements={pagination.totalElements}
+        size={pagination.size}
+        onPageChange={handlePageChange}
+        onSizeChange={handleSizeChange}
+      />
+
+      {/* Car Detail Modal */}
+      <CarDetailModal
+        car={selectedCar}
+        isOpen={showDetail}
+        onClose={() => setShowDetail(false)}
+      />
     </div>
   );
 };

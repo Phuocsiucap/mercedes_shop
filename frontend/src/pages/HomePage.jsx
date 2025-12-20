@@ -48,26 +48,60 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-gray-900 to-gray-800 text-white py-20">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6">
+      {/* Hero Video Banner Section */}
+      <section className="relative h-screen min-h-[600px] overflow-hidden">
+        {/* Background Video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute top-0 left-0 w-full h-full object-cover"
+        >
+          <source
+            src="https://www.mercedes-benz.com.vn/content/dam/vietnam/passengercars/homepage-stage/8251246_2023_MB_ROS_EClass_Exclusive_Cinema_Hero_30Sec_Clean_1920x1080px%20original.mp4"
+            type="video/mp4"
+          />
+          Your browser does not support the video tag.
+        </video>
+
+        {/* Overlay Gradient */}
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-black/70 via-black/50 to-transparent"></div>
+
+        {/* Content */}
+        <div className="relative z-10 container mx-auto px-4 h-full flex items-center">
+          <div className="max-w-3xl text-white">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-fade-in-up">
               Mercedes-Benz
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-gray-300">
+            <p className="text-2xl md:text-4xl mb-8 font-light tracking-wide animate-fade-in-up animation-delay-200">
               The Best or Nothing
             </p>
-            <p className="text-lg mb-8 text-gray-400">
+            <p className="text-lg md:text-xl mb-10 text-gray-200 max-w-2xl animate-fade-in-up animation-delay-400">
               Khám phá bộ sưu tập xe Mercedes-Benz cao cấp với công nghệ hiện đại và thiết kế sang trọng
             </p>
             <Link
               to="/cars"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition duration-300"
+              className="inline-block bg-white text-gray-900 hover:bg-gray-100 font-semibold px-10 py-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-lg animate-fade-in-up animation-delay-600"
             >
               Xem tất cả xe
             </Link>
           </div>
+        </div>
+
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
+          <svg
+            className="w-6 h-6 text-white"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+          </svg>
         </div>
       </section>
 

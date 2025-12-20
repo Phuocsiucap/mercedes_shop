@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { FaEdit, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
+import AdminFilter from '../../components/AdminFilter';
+import AdminPagination from '../../components/AdminPagination';
+import { useAdminFilter } from '../../hooks/useAdminFilter';
+import { exportToExcel, exportConfigs } from '../../utils/exportUtils';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
@@ -8,18 +12,55 @@ const AdminUsers = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [newRole, setNewRole] = useState('');
+  const [pagination, setPagination] = useState({
+    totalElements: 0,
+    totalPages: 0,
+    currentPage: 0,
+    size: 10
+  });
+
+  // Filter hook
+  const {
+    filters,
+    searchTerm,
+    sortBy,
+    sortDir,
+    page,
+    size,
+    handleFilterChange,
+    handleSearch,
+    handleSort,
+    handlePageChange,
+    handleSizeChange,
+    queryParams
+  } = useAdminFilter();
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [queryParams]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/users');
-      setUsers(response.data.data || []);
+      const params = new URLSearchParams(queryParams);
+      const response = await axios.get(`/admin/users?${params.toString()}`);
+      
+      if (response.data?.data?.content) {
+        setUsers(response.data.data.content);
+        setPagination({
+          totalElements: response.data.data.totalElements,
+          totalPages: response.data.data.totalPages,
+          currentPage: response.data.data.number,
+          size: response.data.data.size
+        });
+      } else {
+        setUsers([]);
+        setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
+      }
     } catch (err) {
       console.error('Error fetching users:', err);
+      setUsers([]);
+      setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
     } finally {
       setLoading(false);
     }
@@ -72,11 +113,54 @@ const AdminUsers = () => {
     return role === 'ADMIN' ? 'Quản trị viên' : 'Khách hàng';
   };
 
+  const getSortIcon = (field) => {
+    if (sortBy !== field) return <FaSort className="opacity-50" />;
+    return sortDir === 'ASC' ? <FaSortUp /> : <FaSortDown />;
+  };
+
+  // Filter configuration
+  const filterConfig = [
+    {
+      key: 'role',
+      label: 'Vai trò',
+      type: 'select',
+      options: [
+        { value: 'USER', label: 'Khách hàng' },
+        { value: 'ADMIN', label: 'Quản trị viên' }
+      ]
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'ACTIVE', label: 'Hoạt động' },
+        { value: 'INACTIVE', label: 'Không hoạt động' },
+        { value: 'BANNED', label: 'Bị cấm' }
+      ]
+    }
+  ];
+
+  const handleExport = () => {
+    exportToExcel(users, exportConfigs.users.filename, exportConfigs.users.headers);
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Quản Lý Người Dùng</h1>
       </div>
+
+      {/* Filter Component */}
+      <AdminFilter
+        filters={filterConfig}
+        onFilterChange={handleFilterChange}
+        onSearch={handleSearch}
+        searchPlaceholder="Tìm kiếm theo tên, email, số điện thoại..."
+        showDateRange={true}
+        showExport={true}
+        onExport={handleExport}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -89,17 +173,43 @@ const AdminUsers = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Tên
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition"
+                    onClick={() => handleSort('fullName')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Tên {getSortIcon('fullName')}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Email
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition"
+                    onClick={() => handleSort('email')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Email {getSortIcon('email')}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Số Điện Thoại
                   </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition"
+                    onClick={() => handleSort('role')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Vai Trò {getSortIcon('role')}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition"
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Ngày Tạo {getSortIcon('createdAt')}
+                    </div>
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Vai Trò
+                    Thống Kê
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Hành Động
@@ -122,6 +232,19 @@ const AdminUsers = () => {
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadge(user.role)}`}>
                         {getRoleText(user.role)}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="flex gap-2">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                          {user.totalOrders || 0} đơn
+                        </span>
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          {user.totalReviews || 0} đánh giá
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
@@ -200,6 +323,16 @@ const AdminUsers = () => {
           </div>
         </div>
       )}
+
+      {/* Pagination */}
+      <AdminPagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalElements={pagination.totalElements}
+        size={pagination.size}
+        onPageChange={handlePageChange}
+        onSizeChange={handleSizeChange}
+      />
     </div>
   );
 };

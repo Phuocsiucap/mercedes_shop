@@ -11,6 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -33,6 +37,30 @@ public class OrderController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getAllOrders() {
         List<OrderResponse> orders = orderService.getAllOrders();
+        return ResponseEntity.ok(ApiResponse.success(orders));
+    }
+
+    @GetMapping("/admin/filter")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getFilteredOrdersForAdmin(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) Double minAmount,
+            @RequestParam(required = false) Double maxAmount,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("ASC") ?
+                    Sort.by(sortBy).ascending() :
+                    Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<OrderResponse> orders = orderService.getFilteredOrders(keyword, status, fromDate, toDate, 
+                                                                   minAmount, maxAmount, pageable);
         return ResponseEntity.ok(ApiResponse.success(orders));
     }
 

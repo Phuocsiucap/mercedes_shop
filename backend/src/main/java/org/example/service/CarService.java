@@ -11,10 +11,15 @@ import org.example.repository.CarRepository;
 import org.example.repository.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,6 +34,9 @@ public class CarService {
 
     @Autowired
     private ReviewRepository reviewRepository;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     public Page<CarResponse> getAllCars(Pageable pageable) {
         return carRepository.findAll(pageable)
@@ -93,6 +101,85 @@ public class CarService {
         }
 
         return getAllCars(pageable);
+    }
+
+    public Page<CarResponse> searchCarsAdvanced(String keyword, String categoryId,
+                                              BigDecimal minPrice, BigDecimal maxPrice,
+                                              Integer year, String color, String engine,
+                                              String transmission, Integer seats, Pageable pageable) {
+        
+        List<Criteria> criteriaList = new ArrayList<>();
+        
+        // Keyword search (name or description)
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            Criteria keywordCriteria = new Criteria().orOperator(
+                Criteria.where("name").regex(keyword, "i"),
+                Criteria.where("description").regex(keyword, "i")
+            );
+            criteriaList.add(keywordCriteria);
+        }
+        
+        // Category filter
+        if (categoryId != null && !categoryId.trim().isEmpty()) {
+            criteriaList.add(Criteria.where("category.id").is(categoryId));
+        }
+        
+        // Price range filter
+        if (minPrice != null || maxPrice != null) {
+            Criteria priceCriteria = Criteria.where("price");
+            if (minPrice != null) {
+                priceCriteria = priceCriteria.gte(minPrice);
+            }
+            if (maxPrice != null) {
+                priceCriteria = priceCriteria.lte(maxPrice);
+            }
+            criteriaList.add(priceCriteria);
+        }
+        
+        // Year filter
+        if (year != null) {
+            criteriaList.add(Criteria.where("manufactureYear").is(year));
+        }
+        
+        // Color filter
+        if (color != null && !color.trim().isEmpty()) {
+            criteriaList.add(Criteria.where("color").regex(color, "i"));
+        }
+        
+        // Engine filter
+        if (engine != null && !engine.trim().isEmpty()) {
+            criteriaList.add(Criteria.where("engine").regex(engine, "i"));
+        }
+        
+        // Transmission filter
+        if (transmission != null && !transmission.trim().isEmpty()) {
+            criteriaList.add(Criteria.where("transmission").regex(transmission, "i"));
+        }
+        
+        // Seats filter
+        if (seats != null) {
+            criteriaList.add(Criteria.where("seats").is(seats));
+        }
+        
+        // Build final query
+        Query query = new Query();
+        if (!criteriaList.isEmpty()) {
+            query.addCriteria(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
+        }
+        
+        // Add pagination and sorting
+        query.with(pageable);
+        
+        // Execute query
+        List<Car> cars = mongoTemplate.find(query, Car.class);
+        long total = mongoTemplate.count(query.skip(0).limit(0), Car.class);
+        
+        // Convert to response
+        List<CarResponse> carResponses = cars.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+        
+        return new PageImpl<>(carResponses, pageable, total);
     }
 
     public CarResponse createCar(CarRequest request) {

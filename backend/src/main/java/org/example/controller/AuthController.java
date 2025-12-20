@@ -44,8 +44,15 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Boolean>> checkAuth() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuthenticated = authentication != null &&
-                                 authentication.isAuthenticated() &&
-                                 !(authentication.getPrincipal() instanceof String);
+                authentication.isAuthenticated() &&
+                !(authentication.getPrincipal() instanceof String);
         return ResponseEntity.ok(ApiResponse.success(isAuthenticated));
+    }
+
+    @PostMapping("/oauth")
+    public ResponseEntity<ApiResponse<AuthResponse>> authenticateWithOAuth(
+            @Valid @RequestBody org.example.dto.request.OAuthRequest request) {
+        AuthResponse response = authService.authenticateWithOAuth(request);
+        return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", response));
     }
 }

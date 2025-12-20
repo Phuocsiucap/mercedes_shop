@@ -8,6 +8,10 @@ import org.example.entity.User;
 import org.example.security.UserPrincipal;
 import org.example.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +32,27 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<User>>> getAllUsers() {
         return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers()));
+    }
+
+    @GetMapping("/admin/filter")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Page<User>>> getFilteredUsersForAdmin(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("ASC") ?
+                    Sort.by(sortBy).ascending() :
+                    Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<User> users = userService.getFilteredUsers(keyword, role, fromDate, toDate, pageable);
+        return ResponseEntity.ok(ApiResponse.success(users));
     }
 
     @GetMapping("/{id}")

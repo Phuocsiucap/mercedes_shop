@@ -1,140 +1,287 @@
-import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import AdminCategories from './AdminCategories';
-import AdminCars from './AdminCars';
-import AdminOrders from './AdminOrders';
-import AdminUsers from './AdminUsers';
-import AdminHome from './AdminHome';
-import AdminReports from './AdminReports';
-import { FiLogOut, FiMenu } from 'react-icons/fi';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import axios from '../../api/axios';
+import {
+  FaHome, FaCar, FaUsers, FaShoppingCart,
+  FaChartBar, FaList, FaBars, FaTimes
+} from 'react-icons/fa';
 
-const AdminDashboard = () => {
-  const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const location = useLocation();
-  const [refreshKey, setRefreshKey] = useState(0);
+// Lazy load admin pages
+const AdminCars = lazy(() => import('./AdminCars'));
+const AdminUsers = lazy(() => import('./AdminUsers'));
+const AdminOrders = lazy(() => import('./AdminOrders'));
+const AdminCategories = lazy(() => import('./AdminCategories'));
+const AdminReports = lazy(() => import('./AdminReports'));
 
-  const handleLogout = () => {
-    if (window.confirm('Bạn chắc chắn muốn đăng xuất?')) {
-      logout();
+const LoadingSpinner = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600"></div>
+  </div>
+);
+
+// Dashboard Overview Component (formerly AdminHome)
+const DashboardOverview = () => {
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalCars: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const extractCount = (res) => {
+    if (!res) return 0;
+    const d = res.data;
+    if (!d) return 0;
+    if (Array.isArray(d)) return d.length;
+    if (Array.isArray(d.data)) return d.data.length;
+    if (d.data && Array.isArray(d.data.content)) return d.data.content.length;
+    if (Array.isArray(d.content)) return d.content.length;
+    if (typeof d.total === 'number') return d.total;
+    if (typeof d.totalItems === 'number') return d.totalItems;
+    if (typeof d.count === 'number') return d.count;
+    return 0;
+  };
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const [users, cars, orders] = await Promise.all([
+        axios.get('/users'),
+        axios.get('/cars'),
+        axios.get('/orders'),
+      ]);
+
+      const carsCount = extractCount(cars);
+      const ordersData = orders.data?.data || (Array.isArray(orders.data) ? orders.data : []);
+      const usersData = users.data?.data || (Array.isArray(users.data) ? users.data : []);
+
+      const totalRevenue = (ordersData || []).reduce(
+        (sum, order) => sum + Number(order?.totalAmount ?? 0),
+        0
+      );
+
+      setStats({
+        totalUsers: usersData.length || 0,
+        totalCars: carsCount || 0,
+        totalOrders: ordersData.length || 0,
+        totalRevenue: totalRevenue,
+      });
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+      setStats({ totalUsers: 0, totalCars: 0, totalOrders: 0, totalRevenue: 0 });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const isActive = (path) => {
-    return location.pathname === path;
+  useEffect(() => {
+    fetchStats();
+    const intervalId = setInterval(() => fetchStats(), 5000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    fetchRecentOrders();
+  }, []);
+
+  const fetchRecentOrders = async () => {
+    try {
+      const response = await axios.get('/orders');
+      setRecentOrders((response.data.data || (Array.isArray(response.data) ? response.data : [])).slice(0, 5));
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Trigger refresh when location changes
-  useEffect(() => {
-    setRefreshKey((prev) => prev + 1);
-  }, [location]);
+  const formatPrice = (price) => {
+    const val = Number(price) || 0;
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+  };
 
-  const menuItems = [
-    { path: '/admin', label: 'Tổng quan', icon: '📊' },
-    { path: '/admin/reports', label: 'Báo cáo', icon: '📈' },
-    { path: '/admin/categories', label: 'Danh mục', icon: '📁' },
-    { path: '/admin/cars', label: 'Ô tô', icon: '🚗' },
-    { path: '/admin/orders', label: 'Đơn hàng', icon: '📦' },
-    { path: '/admin/users', label: 'Người dùng', icon: '👥' },
-  ];
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+      case 'DELIVERING': return 'bg-blue-100 text-blue-800';
+      case 'COMPLETED': return 'bg-green-100 text-green-800';
+      case 'CANCELLED': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-800">Tổng Quan</h1>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Tổng Người Dùng</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{stats.totalUsers}</p>
+            </div>
+            <div className="text-4xl text-blue-600">👥</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Tổng Ô Tô</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{stats.totalCars}</p>
+            </div>
+            <div className="text-4xl text-green-600">🚗</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Tổng Đơn Hàng</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{stats.totalOrders}</p>
+            </div>
+            <div className="text-4xl text-purple-600">📦</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Tổng Doanh Thu</p>
+              <p className="text-2xl font-bold text-gray-800 mt-2">{formatPrice(stats.totalRevenue)}</p>
+            </div>
+            <div className="text-4xl text-red-600">💰</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Orders */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Đơn Hàng Gần Đây</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày Đặt</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tổng Tiền</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {recentOrders.map((order) => (
+                <tr key={order.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">#{order.id}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {new Date(order.orderDate).toLocaleDateString('vi-VN')}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">{formatPrice(order.totalAmount)}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
+                      {order.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {recentOrders.length === 0 && (
+            <div className="text-center py-8 text-gray-500">Chưa có đơn hàng nào</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main AdminDashboard Component with Sidebar
+const AdminDashboard = () => {
+  const [activeTab, setActiveTab] = useState('home');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const menuItems = [
+    { id: 'home', label: 'Tổng Quan', icon: FaHome },
+    { id: 'cars', label: 'Quản Lý Xe', icon: FaCar },
+    { id: 'users', label: 'Người Dùng', icon: FaUsers },
+    { id: 'orders', label: 'Đơn Hàng', icon: FaShoppingCart },
+    { id: 'categories', label: 'Danh Mục', icon: FaList },
+    { id: 'reports', label: 'Báo Cáo', icon: FaChartBar },
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'home':
+        return <DashboardOverview />;
+      case 'cars':
+        return <AdminCars />;
+      case 'users':
+        return <AdminUsers />;
+      case 'orders':
+        return <AdminOrders />;
+      case 'categories':
+        return <AdminCategories />;
+      case 'reports':
+        return <AdminReports />;
+      default:
+        return <DashboardOverview />;
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
-      <div
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gray-900 text-white transition-all duration-300 overflow-y-auto flex flex-col`}
+      <aside
+        className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-gray-900 text-white transition-all duration-300 flex flex-col`}
       >
-        {/* Logo */}
-        <div className="p-6 flex items-center justify-between">
-          {sidebarOpen && <h1 className="text-2xl font-bold">Mercedes</h1>}
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          {sidebarOpen && <h2 className="text-xl font-bold text-blue-400">Admin Panel</h2>}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hover:bg-gray-800 p-2 rounded"
+            className="p-2 rounded-lg hover:bg-gray-700 transition"
           >
-            <FiMenu className="text-xl" />
+            {sidebarOpen ? <FaTimes /> : <FaBars />}
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="mt-8 flex-1">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-4 px-6 py-3 transition-colors ${
-                isActive(item.path)
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              <span className="text-2xl">{item.icon}</span>
-              {sidebarOpen && <span>{item.label}</span>}
-            </Link>
-          ))}
+        <nav className="flex-1 py-4">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${activeTab === item.id
+                    ? 'bg-blue-600 text-white border-l-4 border-blue-400'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  }`}
+              >
+                <Icon className="text-lg" />
+                {sidebarOpen && <span className="font-medium">{item.label}</span>}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* User Info & Logout (đặt ở cuối, xếp dọc) */}
-        <div className="mt-auto border-t border-gray-800 p-4">
-          <div className={`flex flex-col items-start gap-3 ${!sidebarOpen ? 'items-center' : ''}`}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
-                {user?.fullName?.charAt(0).toUpperCase()}
-              </div>
-              {sidebarOpen && (
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm truncate">{user?.fullName}</p>
-                  <p className="text-xs text-gray-400">Admin</p>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200 text-sm font-semibold shadow-sm ${
-                !sidebarOpen ? 'justify-center' : ''
-              }`}
-            >
-              <FiLogOut className="text-base" />
-              {sidebarOpen && 'Đăng xuất'}
-            </button>
+        {sidebarOpen && (
+          <div className="p-4 border-t border-gray-700 text-center text-gray-500 text-sm">
+            Mercedes Shop Admin
           </div>
-        </div>
-
-        {/* Footer spacer (nếu cần) */}
-        <div className="mt-auto p-4">
-          {/* để trống hoặc thêm link nhỏ nếu muốn */}
-        </div>
-      </div>
+        )}
+      </aside>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {/* Header */}
-        <header className="bg-white shadow-sm p-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-600">Xin chào, {user?.fullName}</span>
-            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center font-bold">
-              {user?.fullName?.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <div className="p-6">
-          <Routes>
-            <Route path="/" element={<AdminHome key={refreshKey} />} />
-            <Route path="/reports" element={<AdminReports />} />
-            <Route path="/categories" element={<AdminCategories />} />
-            <Route path="/cars" element={<AdminCars />} />
-            <Route path="/orders" element={<AdminOrders />} />
-            <Route path="/users" element={<AdminUsers />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
-          </Routes>
-        </div>
-      </div>
+      <main className="flex-1 p-6 overflow-auto">
+        <Suspense fallback={<LoadingSpinner />}>
+          {renderContent()}
+        </Suspense>
+      </main>
     </div>
   );
 };

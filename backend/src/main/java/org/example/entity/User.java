@@ -33,8 +33,15 @@ public class User {
 
     private LocalDateTime createdAt;
 
+    // OAuth fields
+    private Boolean verified = false;
+
+    private String provider = "LOCAL"; // LOCAL, GOOGLE, GITHUB
+
+    private String providerId; // OAuth provider user ID
+
     public enum Role {
-        CUSTOMER,
-        ADMIN
+        CUSTOMER, // Changed from USER for consistency
+        ADMIN, USER
     }
 }

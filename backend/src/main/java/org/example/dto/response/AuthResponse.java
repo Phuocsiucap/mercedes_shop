@@ -28,8 +28,10 @@ public class AuthResponse {
 
     private User.Role role;
 
+    private Boolean verified;
+
     public AuthResponse(String token, String id, String fullName, String email,
-                       String phoneNumber, String address, User.Role role) {
+            String phoneNumber, String address, User.Role role, Boolean verified) {
         this.token = token;
         this.id = id;
         this.fullName = fullName;
@@ -37,5 +39,6 @@ public class AuthResponse {
         this.phoneNumber = phoneNumber;
         this.address = address;
         this.role = role;
+        this.verified = verified;
     }
 }
