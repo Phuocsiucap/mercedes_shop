@@ -30,6 +30,9 @@ public class Order {
     private OrderStatus status;
 
     private String deliveryAddress;
+    
+    @DBRef(lazy = true)
+    private Payment payment; // Tham chiếu đến bản ghi thanh toán
 
     public enum OrderStatus {
         PENDING,

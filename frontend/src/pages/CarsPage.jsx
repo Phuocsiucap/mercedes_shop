@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { searchCars } from '../api/carApi';
+import * as drivertestApi from '../api/drivertestApi';
+import { createVNPayPayment } from '../api/paymentApi';
 import axios from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 const CarsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated } = useAuth();
   const [cars, setCars] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showTestDriveForm, setShowTestDriveForm] = useState(false);
+  const [selectedCarForTestDrive, setSelectedCarForTestDrive] = useState(null);
+  const [testDrivePaymentMethod, setTestDrivePaymentMethod] = useState('direct');
+  const [testDriveData, setTestDriveData] = useState({
+    testDate: '',
+    testLocation: '',
+  });
   const [pagination, setPagination] = useState({
     currentPage: 0,
     totalPages: 0,
@@ -118,6 +129,61 @@ const CarsPage = () => {
     });
     setSearchParams({});
     setPagination((prev) => ({ ...prev, currentPage: 0 }));
+  };
+
+  const handleScheduleTestDrive = (car) => {
+    if (!isAuthenticated) {
+      alert('Vui lòng đăng nhập để đặt lịch lái thử');
+      return;
+    }
+    setSelectedCarForTestDrive(car);
+    setTestDriveData({ testDate: '', testLocation: '' });
+    setShowTestDriveForm(true);
+  };
+
+  const handleSubmitTestDrive = async (e) => {
+    e.preventDefault();
+    try {
+      if (!testDriveData.testDate || !testDriveData.testLocation) {
+        alert('Vui lòng điền đầy đủ thông tin');
+        return;
+      }
+      const testDriveFee = Math.floor(selectedCarForTestDrive.price * 0.03); // 3% of car price
+      const response = await drivertestApi.createDrivertest({
+        carId: selectedCarForTestDrive.id,
+        testDate: new Date(testDriveData.testDate).toISOString(),
+        testLocation: testDriveData.testLocation,
+        fee: testDriveFee,
+      });
+
+      // If VNPay payment selected, redirect to payment
+      if (testDrivePaymentMethod === 'vnpay' && response.data) {
+        try {
+          const paymentResponse = await createVNPayPayment({
+            orderId: `TESTDRIVE_${response.data.id}`,
+            amount: testDriveFee,
+            orderInfo: `Thanh toan phi lai thu xe ${selectedCarForTestDrive.name}`,
+            returnUrl: window.location.origin + '/payment',
+          });
+
+          if (paymentResponse.data && paymentResponse.data.paymentUrl) {
+            window.location.href = paymentResponse.data.paymentUrl;
+            return;
+          }
+        } catch (paymentErr) {
+          console.error('Error creating VNPay payment:', paymentErr);
+          alert('Lỗi khi tạo yêu cầu thanh toán VNPay');
+          return;
+        }
+      }
+
+      alert('Đặt lịch lái thử thành công!');
+      setShowTestDriveForm(false);
+      setTestDriveData({ testDate: '', testLocation: '' });
+      setSelectedCarForTestDrive(null);
+    } catch (err) {
+      alert('Lỗi khi đặt lịch lái thử');
+    }
   };
 
   const formatPrice = (price) => {
@@ -341,12 +407,21 @@ const CarsPage = () => {
                           <span>Năm: {car.manufactureYear}</span>
                           <span>{car.seats} chỗ</span>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-4">
                           <span className="text-xl font-bold text-blue-600">
                             {formatPrice(car.price)}
                           </span>
                           <span className="text-blue-600 font-semibold">Chi tiết →</span>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleScheduleTestDrive(car);
+                          }}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition text-sm"
+                        >
+                          Đặt lịch lái thử
+                        </button>
                       </div>
                     </Link>
                   ))}
@@ -391,6 +466,114 @@ const CarsPage = () => {
           </main>
         </div>
       </div>
+
+      {/* Test Drive Modal */}
+      {showTestDriveForm && selectedCarForTestDrive && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">Đặt lịch lái thử</h2>
+              <button
+                onClick={() => setShowTestDriveForm(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitTestDrive} className="p-6 space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Xe: <span className="font-semibold text-gray-900">{selectedCarForTestDrive.name}</span>
+                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Giá xe</label>
+                <div className="text-2xl font-bold text-blue-600 mb-3">
+                  {formatPrice(selectedCarForTestDrive.price)}
+                </div>
+                <div className="border-t border-blue-100 pt-3">
+                  <p className="text-xs text-gray-600 mb-1">Phí lái thử (3% giá xe):</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    {formatPrice(Math.floor(selectedCarForTestDrive.price * 0.03))}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày và giờ lái <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={testDriveData.testDate}
+                  onChange={(e) => setTestDriveData({ ...testDriveData, testDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Địa điểm <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={testDriveData.testLocation}
+                  onChange={(e) => setTestDriveData({ ...testDriveData, testLocation: e.target.value })}
+                  placeholder="VD: Showroom Mercedes Hà Nội"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phương thức thanh toán
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="testDrivePayment"
+                      value="direct"
+                      checked={testDrivePaymentMethod === 'direct'}
+                      onChange={(e) => setTestDrivePaymentMethod(e.target.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">Thanh toán trực tiếp</span>
+                  </label>
+                  <label className="flex items-center p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="testDrivePayment"
+                      value="vnpay"
+                      checked={testDrivePaymentMethod === 'vnpay'}
+                      onChange={(e) => setTestDrivePaymentMethod(e.target.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">VNPay</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition"
+                >
+                  Đặt lịch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTestDriveForm(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 rounded-lg transition"
+                >
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

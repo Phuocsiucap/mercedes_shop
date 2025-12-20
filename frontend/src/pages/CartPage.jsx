@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { createOrder } from '../api/orderApi';
+import { createVNPayPayment } from '../api/paymentApi';
 
 const CartPage = () => {
   const { items, totalAmount, updateQuantity, removeItem, clearCart } = useCart();
@@ -11,6 +12,7 @@ const CartPage = () => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('direct'); // 'direct' or 'vnpay'
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -66,6 +68,28 @@ const CartPage = () => {
       const response = await createOrder(orderData);
 
       if (response.success) {
+        // If VNPay payment selected, redirect to VNPay
+        if (paymentMethod === 'vnpay') {
+          try {
+            const paymentResponse = await createVNPayPayment({
+              orderId: response.data.id,
+              amount: totalAmount,
+              orderInfo: `Thanh toan don hang #${response.data.id}`,
+              returnUrl: window.location.origin + '/payment',
+            });
+
+            if (paymentResponse.data && paymentResponse.data.paymentUrl) {
+              window.location.href = paymentResponse.data.paymentUrl;
+              return;
+            }
+          } catch (paymentErr) {
+            console.error('Error creating VNPay payment:', paymentErr);
+            setError('Lỗi khi tạo yêu cầu thanh toán VNPay');
+            return;
+          }
+        }
+
+        // Direct payment
         clearCart();
         alert('Đặt hàng thành công!');
         navigate('/orders');
@@ -246,6 +270,43 @@ const CartPage = () => {
                   <span className="font-bold text-blue-600">
                     {formatPrice(totalAmount)}
                   </span>
+                </div>
+              </div>
+
+              {/* Payment Method Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Phương thức thanh toán
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50" style={{borderColor: paymentMethod === 'direct' ? '#3b82f6' : undefined}}>
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="direct"
+                      checked={paymentMethod === 'direct'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-3">
+                      <span className="block font-medium text-gray-800">Thanh toán trực tiếp</span>
+                      <span className="text-sm text-gray-600">Liên hệ với nhân viên bán hàng</span>
+                    </span>
+                  </label>
+                  <label className="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50" style={{borderColor: paymentMethod === 'vnpay' ? '#3b82f6' : undefined}}>
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="vnpay"
+                      checked={paymentMethod === 'vnpay'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="ml-3">
+                      <span className="block font-medium text-gray-800">VNPay</span>
+                      <span className="text-sm text-gray-600">Thanh toán qua cổng VNPay an toàn</span>
+                    </span>
+                  </label>
                 </div>
               </div>
 
