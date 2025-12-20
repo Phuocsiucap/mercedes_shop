@@ -7,6 +7,7 @@ import AdminOrders from './AdminOrders';
 import AdminUsers from './AdminUsers';
 import AdminHome from './AdminHome';
 import AdminReports from './AdminReports';
+import AdminDrivertest from './AdminDrivertest';
 import { FiLogOut, FiMenu } from 'react-icons/fi';
 
 const AdminDashboard = () => {
@@ -36,6 +37,7 @@ const AdminDashboard = () => {
     { path: '/admin/categories', label: 'Danh mục', icon: '📁' },
     { path: '/admin/cars', label: 'Ô tô', icon: '🚗' },
     { path: '/admin/orders', label: 'Đơn hàng', icon: '📦' },
+    { path: '/admin/drivertest', label: 'Lái thử', icon: '🚘' },
     { path: '/admin/users', label: 'Người dùng', icon: '👥' },
   ];
 
@@ -130,6 +132,7 @@ const AdminDashboard = () => {
             <Route path="/categories" element={<AdminCategories />} />
             <Route path="/cars" element={<AdminCars />} />
             <Route path="/orders" element={<AdminOrders />} />
+            <Route path='drivertest' element={<AdminDrivertest />} />  
             <Route path="/users" element={<AdminUsers />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
