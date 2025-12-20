@@ -50,7 +50,7 @@ const HomePage = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-gray-900 to-gray-800 text-white py-20">
-        <div className="container mx-auto px-4">
+        <div className="max-w-[80%] mx-auto px-4">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
               Mercedes-Benz
@@ -74,7 +74,7 @@ const HomePage = () => {
       {/* Categories Section */}
       {categories.length > 0 && (
         <section className="py-16 bg-white">
-          <div className="container mx-auto px-4">
+          <div className="max-w-[80%] mx-auto px-4">
             <h2 className="text-3xl font-bold text-center mb-12">Danh Mục Xe</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {categories.map((category) => (
@@ -97,7 +97,7 @@ const HomePage = () => {
 
       {/* Featured Cars Section */}
       <section className="py-16">
-        <div className="container mx-auto px-4">
+        <div className="max-w-[80%] mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Xe Nổi Bật</h2>
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
@@ -173,7 +173,7 @@ const HomePage = () => {
 
       {/* Features Section */}
       <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
+        <div className="max-w-[80%] mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Tại Sao Chọn Chúng Tôi</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">

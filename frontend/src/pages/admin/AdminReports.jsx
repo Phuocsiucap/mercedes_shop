@@ -38,6 +38,8 @@ const AdminReports = () => {
   const fetchReportsData = async () => {
     try {
       setLoading(true);
+      
+      // Fetch data from APIs
       const [orders, cars, categories] = await Promise.all([
         axios.get('/orders'),
         axios.get('/cars'),
@@ -46,24 +48,39 @@ const AdminReports = () => {
 
       const ordersData = extractArrayData(orders);
       const carsData = extractArrayData(cars);
-      const categoriesData = extractArrayData(categories);
 
-      // store raw orders for aggregation
+      console.log('=== DATA FETCHED ===');
+      console.log('Orders:', ordersData.length, 'items');
+      console.log('Cars:', carsData.length, 'items');
+      console.log('Sample order:', ordersData[0]);
+      console.log('Sample car:', carsData[0]);
+
+      // Store raw orders for aggregation
       setOrdersRaw(ordersData);
 
       // Calculate stats
       const totalRevenue = ordersData.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
-      const avgRevenue = ordersData.length > 0 
-        ? totalRevenue / ordersData.length 
-        : 0;
+      const avgRevenue = ordersData.length > 0 ? totalRevenue / ordersData.length : 0;
+
+      // Calculate total cars sold
+      let totalCarsSold = 0;
+      ordersData.forEach(order => {
+        if (Array.isArray(order.orderDetails)) {
+          order.orderDetails.forEach(detail => {
+            totalCarsSold += Number(detail.quantity || 1);
+          });
+        } else {
+          totalCarsSold += 1;
+        }
+      });
 
       setStats({
         totalRevenue,
-        totalCars: carsData.length,
+        totalCars: totalCarsSold,
         avgRevenue,
       });
 
-      // 1. Revenue data (grouped by date using ISO key for reliable sorting)
+      // Revenue data by date
       const revenueByDate = {};
       ordersData.forEach(order => {
         if (!order.orderDate) return;
@@ -71,7 +88,7 @@ const AdminReports = () => {
         const yyyy = d.getFullYear();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
-        const key = `${yyyy}-${mm}-${dd}`; // sortable key
+        const key = `${yyyy}-${mm}-${dd}`;
         const label = d.toLocaleDateString('vi-VN');
         if (!revenueByDate[key]) revenueByDate[key] = { label, revenue: 0 };
         revenueByDate[key].revenue += Number(order.totalAmount || 0);
@@ -87,7 +104,7 @@ const AdminReports = () => {
       
       setRevenueData(chartData.length > 0 ? chartData : [{ date: 'Không có dữ liệu', revenue: 0 }]);
 
-      // 2. Status stats (Pie chart)
+      // Status stats
       const statusCount = {};
       ordersData.forEach(order => {
         if (order.status) {
@@ -106,46 +123,97 @@ const AdminReports = () => {
         { name: 'Chưa có dữ liệu', value: 1 }
       ]);
 
-      // 3. Top cars (robust aggregation: support order.items, single order.car/carId, and compute sold count + revenue)
-      const carAccum = {}; // { [carId]: { count: number, revenue: number } }
-      ordersData.forEach(order => {
-        // if order has items array, prefer per-item aggregation
-        if (Array.isArray(order.items) && order.items.length > 0) {
-          order.items.forEach(item => {
-            const cid = item.carId ?? item.productId ?? item.id ?? item.car?.id;
-            if (!cid) return;
-            const qty = Number(item.quantity ?? item.qty ?? 1) || 1;
-            const price = Number(item.price ?? item.unitPrice ?? item.totalAmount ?? 0) || 0;
-            const itemRevenue = Number(item.totalAmount ?? (price * qty)) || (price * qty);
-            if (!carAccum[cid]) carAccum[cid] = { count: 0, revenue: 0 };
-            carAccum[cid].count += qty;
-            carAccum[cid].revenue += itemRevenue;
-          });
-          return;
-        }
+      // TOP CARS CALCULATION - FIXED VERSION
+      console.log('=== PROCESSING TOP CARS ===');
+      const carAccum = {};
+      
+      ordersData.forEach((order, orderIdx) => {
+        console.log(`Order ${orderIdx + 1}:`, {
+          id: order.id,
+          hasOrderDetails: !!order.orderDetails,
+          orderDetailsCount: order.orderDetails?.length || 0,
+          totalAmount: order.totalAmount
+        });
 
-        // fallback: single-car order
-        const cid = order.carId ?? order.car?.id;
-        if (cid) {
-          if (!carAccum[cid]) carAccum[cid] = { count: 0, revenue: 0 };
-          carAccum[cid].count += 1;
-          carAccum[cid].revenue += Number(order.totalAmount ?? 0);
+        // Process orderDetails (main structure)
+        if (Array.isArray(order.orderDetails) && order.orderDetails.length > 0) {
+          order.orderDetails.forEach((detail, detailIdx) => {
+            console.log(`  Detail ${detailIdx + 1}:`, {
+              carId: detail.carId,
+              carFromDetail: detail.car?.id,
+              carName: detail.car?.name,
+              quantity: detail.quantity,
+              price: detail.price
+            });
+
+            // Get car ID from multiple possible sources
+            const carId = detail.car?.id || detail.carId;
+            if (!carId) {
+              console.log('    ❌ No car ID found');
+              return;
+            }
+
+            const qty = Number(detail.quantity || 1);
+            const price = Number(detail.price || 0);
+            
+            if (!carAccum[carId]) {
+              carAccum[carId] = { count: 0, revenue: 0 };
+            }
+            
+            carAccum[carId].count += qty;
+            carAccum[carId].revenue += price * qty;
+            
+            console.log(`    ✅ Added to car ${carId}: +${qty} cars, +${price * qty} revenue`);
+          });
+        } else {
+          // Fallback for single car orders
+          const carId = order.carId || order.car?.id;
+          if (carId) {
+            console.log(`  Single car order: ${carId}`);
+            if (!carAccum[carId]) {
+              carAccum[carId] = { count: 0, revenue: 0 };
+            }
+            carAccum[carId].count += 1;
+            carAccum[carId].revenue += Number(order.totalAmount || 0);
+            console.log(`    ✅ Added to car ${carId}: +1 car, +${order.totalAmount} revenue`);
+          } else {
+            console.log('  ❌ No car ID found in single car order');
+          }
         }
       });
 
+      console.log('Car accumulation result:', carAccum);
+
+      // Map car IDs to car details
       const topCarsData = Object.entries(carAccum)
         .map(([carId, { count, revenue }]) => {
-          const car = carsData.find(c => String(c.id) === String(carId));
+          console.log(`Looking up car ID: ${carId} (type: ${typeof carId})`);
+          
+          // Find car with flexible ID matching
+          const car = carsData.find(c => {
+            const currentCarId = c.id || c._id; // Hỗ trợ cả id và _id
+          return String(currentCarId) === String(carId);
+          });
+          
+          if (car) {
+            console.log(`  ✅ Found car: "${car.name}"`);
+          } else {
+            console.log(`  ❌ Car not found. Available IDs:`, carsData.slice(0, 5).map(c => `${c.id}(${typeof c.id})`));
+          }
+          
           return {
             id: carId,
-            name: car?.name || `Xe #${carId}`,
+            name: car?.name || `Xe không tìm thấy #${carId}`,
             count,
             revenue: revenue || 0,
-            image: car?.imageUrl || car?.images?.[0] || null,
+            image: car?.image || car?.imageUrl || null,
+            car: car // Keep for debugging
           };
         })
         .sort((a, b) => b.count - a.count || b.revenue - a.revenue)
         .slice(0, 10);
+
+      console.log('Final top cars:', topCarsData);
 
       setTopCars(topCarsData.length > 0 ? topCarsData : [
         { id: 'none', name: 'Chưa có dữ liệu bán hàng', count: 0, revenue: 0 }
@@ -153,7 +221,6 @@ const AdminReports = () => {
 
     } catch (err) {
       console.error('Error fetching reports:', err);
-      // Set fallback data (ensure Pie chart has a visible slice)
       setRevenueData([{ date: 'Lỗi tải dữ liệu', revenue: 0 }]);
       setStatusStats([{ name: 'Lỗi tải dữ liệu', value: 1 }]);
       setTopCars([{ name: 'Lỗi tải dữ liệu', count: 0 }]);
@@ -327,7 +394,7 @@ const AdminReports = () => {
                   orders: a.orders,
                   revenueMillion: Math.round(a.revenue / 1_000_000),
                 }))}
-                margin={{ top: 10, right: 40, left: 0, bottom: 0 }}
+                margin={{ top: 30, right: 40, left: 0, bottom: 0 }}
                 barCategoryGap="30%"
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -338,7 +405,7 @@ const AdminReports = () => {
                   formatter={(value, name) => name === 'revenueMillion' ? [`${value} Triệu đ`, 'Doanh thu'] : [value, 'Số đơn']}
                   contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
                 />
-                <Legend verticalAlign="top" />
+                <Legend verticalAlign="bottom" align="center" />
 
                 <Bar yAxisId="left" dataKey="orders" fill="#3b82f6" name="Số lượng đơn" radius={[4,4,0,0]}>
                   <LabelList dataKey="orders" position="top" formatter={(v) => v} />
@@ -377,47 +444,129 @@ const AdminReports = () => {
         )}
       </div>
 
-      {/* Danh sách ô tô bán chạy (Top N) - appears right after the above chart */}
+      {/* Danh sách ô tô bán chạy */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-800">🚘 Danh sách ô tô bán chạy</h2>
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-gray-600">Top</label>
-            <select value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="border rounded px-2 py-1 text-sm">
-              <option value={3}>Top 3</option>
-              <option value={5}>Top 5</option>
-            </select>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Xe Bán Chạy Nhất</h2>
+            <p className="text-gray-500 text-sm mt-1">Các mẫu xe dẫn đầu doanh số tháng này</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {[3, 5, 10].map(num => (
+              <button
+                key={num}
+                onClick={() => setTopN(num)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  topN === num 
+                    ? 'bg-blue-600 text-white shadow-md' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Top {num}
+              </button>
+            ))}
           </div>
         </div>
 
         {topCars && topCars.length > 0 && topCars[0].count > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {topCars.slice(0, topN).map((car, idx) => (
-              <div key={car.id || idx} className="border rounded-lg p-4 flex flex-col items-start gap-3 hover:shadow transition">
-                <div className="w-full flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-12 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                      {car.image ? <img src={car.image} alt={car.name} className="w-full h-full object-cover" /> : <span className="text-gray-400 text-sm">No Img</span>}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-800">{car.name}</p>
-                      <p className="text-sm text-gray-500">Đã bán: <span className="font-medium">{car.count}</span></p>
+              <div key={car.id || idx} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-[1.02] border border-gray-100">
+                {/* Ranking Badge */}
+                <div className="relative">
+                  <div className="absolute top-3 left-3 z-10">
+                    <div className={`px-3 py-1 rounded-full text-white text-sm font-bold shadow-lg ${
+                      idx === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                      idx === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-600' :
+                      idx === 2 ? 'bg-gradient-to-r from-orange-400 to-orange-600' :
+                      'bg-gradient-to-r from-blue-400 to-blue-600'
+                    }`}>
+                      {idx === 0 ? '👑 #1 Best Seller' : `#${idx + 1}`}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500">#{idx + 1}</div>
-                    <div className="text-sm font-semibold text-blue-600 mt-1">{formatMoneyShort(car.revenue || 0)}</div>
+
+                  {/* Car Image */}
+                  <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+                    {car.image ? (
+                      <>
+                        <img 
+                          src={car.image} 
+                          alt={car.name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div className="w-full h-full hidden items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                          <span className="text-6xl text-gray-400">🚗</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                        <span className="text-6xl text-gray-400">🚗</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="w-full bg-gray-100 h-2 rounded">
-                  <div className="h-2 bg-blue-500" style={{ width: `${Math.min(100, Math.round((car.count / Math.max(...topCars.map(t=>t.count),1)) * 100))}%` }} />
+
+                {/* Car Info */}
+                <div className="p-5">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 truncate">{car.name}</h3>
+                  <div className="text-sm text-gray-500 mb-4">
+                    <span>Sedan • 1.5L CVT</span>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Đã bán</p>
+                      <p className="text-lg font-bold text-gray-900">{car.count.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 mb-1">Doanh thu</p>
+                      <p className="text-lg font-bold text-blue-600">
+                        {car.revenue >= 1000000000 
+                          ? `${Math.round(car.revenue / 1000000000)} Tỷ`
+                          : car.revenue >= 1000000
+                          ? `${Math.round(car.revenue / 1000000)} Tr`
+                          : formatPrice(car.revenue)
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                      <span>Tỷ lệ bán</span>
+                      <span>{Math.round((car.count / Math.max(...topCars.map(t=>t.count),1)) * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-700 ${
+                          idx === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                          idx === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-600' :
+                          idx === 2 ? 'bg-gradient-to-r from-orange-400 to-orange-600' :
+                          'bg-gradient-to-r from-blue-400 to-blue-600'
+                        }`}
+                        style={{ 
+                          width: `${Math.min(100, Math.round((car.count / Math.max(...topCars.map(t=>t.count),1)) * 100))}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="h-28 flex items-center justify-center text-gray-500 border-2 border-dashed rounded">
-            Chưa có dữ liệu bán hàng
+          <div className="h-64 flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
+            <div className="text-6xl mb-4">📊</div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">Chưa có dữ liệu bán hàng</h3>
+            <p className="text-gray-500 text-center max-w-md">
+              Dữ liệu xe bán chạy sẽ hiển thị khi có đơn hàng được xử lý thành công
+            </p>
           </div>
         )}
       </div>
