@@ -65,7 +65,7 @@ const cartReducer = (state, action) => {
             id: action.payload.id,
             name: action.payload.name,
             price: action.payload.price,
-            image: action.payload.image,
+            image: action.payload.image || (action.payload.images && action.payload.images[0]) || null,
             color: action.payload.color,
             quantity: action.payload.quantity || 1,
           },

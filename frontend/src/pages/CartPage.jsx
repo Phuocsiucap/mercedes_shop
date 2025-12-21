@@ -118,6 +118,7 @@ const CartPage = () => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-md">
               {items.map((item) => (
+                
                 <div
                   key={item.id}
                   className="flex items-center gap-4 p-4 border-b last:border-b-0"

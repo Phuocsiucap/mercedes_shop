@@ -67,7 +67,8 @@ const CarDetailPage = () => {
       id: car.id,
       name: car.name,
       price: car.price,
-      image: car.image,
+      image: mainImage,
+      
       color: car.color,
       quantity: quantity,
     });
