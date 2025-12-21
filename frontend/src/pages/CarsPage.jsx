@@ -47,38 +47,44 @@ const CarsPage = () => {
   };
 
   const fetchCars = async () => {
-    try {
-      setLoading(true);
-      const params = {
-        page: pagination.currentPage,
-        size: pagination.size,
-        sortBy: filters.sortBy,
-        sortDir: filters.sortDir,
-        ...(filters.keyword && { keyword: filters.keyword }),
-        ...(filters.categoryId && { categoryId: filters.categoryId }),
-        ...(filters.minPrice && { minPrice: filters.minPrice }),
-        ...(filters.maxPrice && { maxPrice: filters.maxPrice }),
-        ...(filters.year && { year: filters.year }),
-        ...(filters.color && { color: filters.color }),
-      };
+  try {
+    setLoading(true);
+    const params = {
+      page: pagination.currentPage,
+      size: pagination.size,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+      ...(filters.keyword && { keyword: filters.keyword }),
+      ...(filters.categoryId && { categoryId: filters.categoryId }),
+      ...(filters.minPrice && { minPrice: filters.minPrice }),
+      ...(filters.maxPrice && { maxPrice: filters.maxPrice }),
+      ...(filters.year && { year: filters.year }),
+      ...(filters.color && { color: filters.color }),
+    };
 
-      const response = await searchCars(params);
-      const data = response.data;
+    const response = await searchCars(params);
+    
+    // Backend trả về ApiResponse { success: true, data: PageContent, ... }
+    const result = response.data?.data || response.data; 
 
-      setCars(data.content || []);
+    if (result && result.content) {
+      setCars(result.content);
       setPagination((prev) => ({
         ...prev,
-        totalPages: data.totalPages || 0,
-        totalElements: data.totalElements || 0,
+        totalPages: result.totalPages || 0,
+        totalElements: result.totalElements || 0,
       }));
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching cars:', err);
-      setError('Không thể tải danh sách xe. Vui lòng thử lại sau.');
-    } finally {
-      setLoading(false);
+    } else {
+      setCars([]);
     }
-  };
+    setError(null);
+  } catch (err) {
+    console.error('Error fetching cars:', err);
+    setError('Không thể tải danh sách xe. Vui lòng thử lại sau.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleFilterChange = (name, value) => {
     setFilters((prev) => ({ ...prev, [name]: value }));
@@ -311,17 +317,23 @@ const CarsPage = () => {
                       className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                     >
                       <div className="relative h-48 bg-gray-200">
-                        {car.image ? (
-                          <img
-                            src={car.image}
-                            alt={car.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-gray-400">
-                            <span className="text-6xl">🚗</span>
-                          </div>
-                        )}
+                        {/* Kiểm tra mảng images mới thay vì car.image cũ */}
+  {car.images && car.images.length > 0 ? (
+    <img 
+      src={car.images[0]} 
+      alt={car.name} 
+      className="w-full h-full object-cover"
+      // Thêm xử lý lỗi nếu link ảnh từ Cloudinary bị hỏng
+      onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
+    />
+  ) : (
+    <div className="flex items-center justify-center h-full text-gray-400 bg-gray-100">
+      <div className="text-center">
+        <span className="text-6xl block">🚗</span>
+        <span className="text-xs mt-2 block font-medium">Chưa có hình ảnh</span>
+      </div>
+    </div>
+  )}
                         {car.averageRating > 0 && (
                           <div className="absolute top-2 right-2 bg-yellow-400 text-white px-2 py-1 rounded-full text-xs font-semibold">
                             ⭐ {car.averageRating.toFixed(1)}

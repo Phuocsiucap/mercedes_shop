@@ -115,15 +115,21 @@ const HomePage = () => {
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                 >
                   <div className="relative h-64 bg-gray-200">
-                    {car.image ? (
-                      <img
-                        src={car.image}
-                        alt={car.name}
+                    {/* Kiểm tra mảng images mới thay vì car.image cũ */}
+                    {car.images && car.images.length > 0 ? (
+                      <img 
+                        src={car.images[0]} 
+                        alt={car.name} 
                         className="w-full h-full object-cover"
+                        // Thêm xử lý lỗi nếu link ảnh từ Cloudinary bị hỏng
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
                       />
                     ) : (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <span className="text-6xl">🚗</span>
+                      <div className="flex items-center justify-center h-full text-gray-400 bg-gray-100">
+                        <div className="text-center">
+                          <span className="text-6xl block">🚗</span>
+                          <span className="text-xs mt-2 block font-medium">Chưa có hình ảnh</span>
+                        </div>
                       </div>
                     )}
                     {car.averageRating > 0 && (

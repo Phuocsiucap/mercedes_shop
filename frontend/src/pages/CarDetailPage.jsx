@@ -5,11 +5,14 @@ import axios from '../api/axios';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 
+
+
 const CarDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { isAuthenticated } = useAuth();
+  const [mainImage, setMainImage] = useState('');
   const [car, setCar] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,18 +29,28 @@ const CarDetailPage = () => {
   }, [id]);
 
   const fetchCarDetail = async () => {
-    try {
-      setLoading(true);
-      const response = await getCarById(id);
-      setCar(response.data);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching car:', err);
-      setError('Không thể tải thông tin xe. Vui lòng thử lại sau.');
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    const response = await getCarById(id);
+    const data = response.data; // Lấy dữ liệu từ response
+    
+    setCar(data); // Lưu thông tin xe
+
+    // CẬP NHẬT ẢNH CHÍNH
+    if (data.images && data.images.length > 0) {
+      setMainImage(data.images[0]);
+    } else if (data.image) {
+      setMainImage(data.image); // Fallback cho trường đơn lẻ
     }
-  };
+    
+    setError(null);
+  } catch (err) {
+    console.error('Error fetching car:', err);
+    setError('Không thể tải thông tin xe. Vui lòng thử lại sau.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchReviews = async () => {
     try {
@@ -146,17 +159,52 @@ const CarDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
             {/* Image */}
             <div className="relative">
-              {car.image ? (
-                <img
-                  src={car.image}
-                  alt={car.name}
-                  className="w-full h-[500px] object-cover object-center rounded-lg shadow-lg"
-                />
-              ) : (
-                <div className="w-full h-[500px] bg-gray-200 rounded-lg flex items-center justify-center">
-                  <span className="text-9xl">🚗</span>
-                </div>
-              )}
+              <div className="flex flex-col md:flex-row gap-8"> {/* Container chia 2 cột chính */}
+
+  {/* CỘT BÊN TRÁI: KHUNG CHỨA TẤT CẢ ẢNH */}
+  <div className="w-full  flex flex-col gap-4">
+    {car.images && car.images.length > 0 ? (
+      <>
+        {/* 1. Khung ảnh lớn - Luôn hiển thị giá trị của mainImage */}
+        <div className="w-full aspect-video overflow-hidden rounded-xl bg-gray-100 border shadow-sm">
+          <img 
+            src={mainImage} 
+            alt={car.name} 
+            className="w-full h-full object-cover transition-all duration-500"
+            onError={(e) => { e.target.src = 'https://via.placeholder.com/600x400?text=Error'; }}
+          />
+        </div>
+
+        {/* 2. Hàng ảnh nhỏ bên dưới */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {car.images.map((imgUrl, index) => (
+            <div 
+              key={index} 
+              // Khi click vào đây, setMainImage sẽ đổi ảnh lớn phía trên
+              onClick={() => setMainImage(imgUrl)} 
+              className={`min-w-[100px] h-20 rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
+                mainImage === imgUrl ? 'border-blue-600 scale-105' : 'border-gray-200'
+              }`}
+            >
+              <img 
+                src={imgUrl} 
+                className="w-full h-full object-cover"
+                alt="Thumbnail"
+              />
+            </div>
+          ))}
+        </div>
+      </>
+    ) : (
+      // ... (Phần hiển thị khi không có ảnh giữ nguyên)
+      <div className="h-64 bg-gray-100 flex items-center justify-center">Chưa có ảnh</div>
+    )}
+  </div>
+
+  
+</div>
+
+
               <button
                 onClick={handleToggleFavorite}
                 className={`absolute top-4 right-4 p-3 rounded-full ${

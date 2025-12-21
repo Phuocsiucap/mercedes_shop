@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import { FaEdit, FaTrash, FaPlus, FaEye } from 'react-icons/fa';
+// Thêm import hàm tiện ích
+import { uploadImagesToCloudinary } from '../../utils/cloudinary';
+
 
 const AdminCars = () => {
   const [cars, setCars] = useState([]);
@@ -8,6 +12,8 @@ const AdminCars = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]); // State mới để giữ file từ máy tính
+  
   const [formData, setFormData] = useState({
     name: '',
     categoryId: '',
@@ -17,7 +23,7 @@ const AdminCars = () => {
     engine: '',
     transmission: '',
     seats: '',
-    image: '',
+    images: [], // Đổi từ 'image' (string) thành 'images' (mảng)
     description: '',
   });
   const [error, setError] = useState(null);
@@ -26,7 +32,7 @@ const AdminCars = () => {
     fetchCars();
     fetchCategories();
   }, []);
-
+  const navigate = useNavigate();
   const fetchCars = async () => {
     try {
       setLoading(true);
@@ -79,8 +85,20 @@ const AdminCars = () => {
     }
 
     try {
+      setLoading(true);
+      let finalImageUrls = formData.images || [];
+
+      // Bước 1: Nếu có chọn file mới, upload lên Cloudinary
+      if (selectedFiles.length > 0) {
+        const uploadedUrls = await uploadImagesToCloudinary(selectedFiles);
+        // Kết hợp ảnh cũ (nếu có) và ảnh mới
+        finalImageUrls = [...finalImageUrls, ...uploadedUrls];
+      }
+
+      // Bước 2: Chuẩn bị dữ liệu gửi về Backend Java
       const submitData = {
         ...formData,
+        images: finalImageUrls.filter(url => url !== ''), // Đảm bảo gửi mảng images
         categoryId: formData.categoryId.toString(),
         price: parseFloat(formData.price),
         manufactureYear: parseInt(formData.manufactureYear),
@@ -96,25 +114,21 @@ const AdminCars = () => {
       }
 
       resetForm();
+      setSelectedFiles([]); // Reset danh sách file sau khi xong
       fetchCars();
     } catch (err) {
       console.error('Error:', err);
       setError(err.response?.data?.message || 'Có lỗi xảy ra');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleEdit = (car) => {
     setFormData({
-      name: car.name,
-      categoryId: car.categoryId,
-      price: car.price,
-      manufactureYear: car.manufactureYear,
-      color: car.color,
-      engine: car.engine,
-      transmission: car.transmission,
-      seats: car.seats,
-      image: car.image,
-      description: car.description,
+      ...car,
+      // Đảm bảo images là mảng, nếu car.image cũ là string thì đưa vào mảng
+      images: Array.isArray(car.images) ? car.images : (car.image ? [car.image] : []),
     });
     setEditingId(car.id);
     setShowForm(true);
@@ -143,9 +157,10 @@ const AdminCars = () => {
       engine: '',
       transmission: '',
       seats: '',
-      image: '',
+      images: [], // Reset về mảng rỗng
       description: '',
     });
+    setSelectedFiles([]);
     setEditingId(null);
     setShowForm(false);
     setError(null);
@@ -292,17 +307,44 @@ const AdminCars = () => {
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                URL Hình Ảnh
+            <div className="md:col-span-2 space-y-4">
+              <label className="block text-sm font-semibold text-gray-700">
+                Hình ảnh xe
               </label>
+              
+              {/* Chọn file từ máy tính */}
               <input
-                type="text"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="https://example.com/image.jpg"
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => setSelectedFiles(Array.from(e.target.files))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
+              <p className="text-xs text-gray-500">Đã chọn {selectedFiles.length} file mới</p>
+
+              {/* Hiển thị các URL ảnh hiện có (để có thể xóa bớt link nếu muốn) */}
+              <div className="space-y-2">
+                {formData.images.map((url, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={url}
+                      readOnly
+                      className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-sm text-gray-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newImages = formData.images.filter((_, i) => i !== index);
+                        setFormData({ ...formData, images: newImages });
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <FaTrash size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="md:col-span-2">
@@ -370,10 +412,14 @@ const AdminCars = () => {
                   <tr key={car.id} className="hover:bg-blue-50 transition">
                     <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                        {categories.find((c) => c.id === car.categoryId)?.name || '-'}
-                      </span>
-                    </td>
+  <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
+    {/* Sử dụng == thay vì === để tự động ép kiểu, hoặc String() */}
+    {categories.find((c) => c.id == car.categoryId)?.name || 
+     car.categoryName || 
+     car.category?.name || 
+     '-'}
+  </span>
+</td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                       {formatPrice(car.price)}
                     </td>
@@ -382,6 +428,13 @@ const AdminCars = () => {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-3">
+                        <button
+                          onClick={() => navigate(`/cars/${car.id}`)} // Điều hướng đến trang chi tiết
+                          className="text-green-600 hover:text-green-800 hover:bg-green-100 p-2 rounded-lg transition font-semibold"
+                          title="Xem chi tiết"
+                        >
+                          <FaEye />
+                        </button>
                         <button
                           onClick={() => handleEdit(car)}
                           className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 p-2 rounded-lg transition font-semibold"
