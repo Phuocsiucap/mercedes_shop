@@ -5,6 +5,7 @@ import * as drivertestApi from '../api/drivertestApi';
 import { createVNPayPayment } from '../api/paymentApi';
 import axios from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { FaSearch, FaFilter, FaCar, FaCalendarAlt, FaMapMarkerAlt, FaMoneyBillWave, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const CarsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,7 +25,7 @@ const CarsPage = () => {
     currentPage: 0,
     totalPages: 0,
     totalElements: 0,
-    size: 12,
+    size: 9, // Changed to 9 for a better grid layout (3x3)
   });
 
   const [filters, setFilters] = useState({
@@ -46,12 +47,14 @@ const CarsPage = () => {
 
   useEffect(() => {
     fetchCars();
-  }, [pagination.currentPage, filters]);
+  }, [pagination.currentPage, filters.sortBy, filters.sortDir]); // Re-fetch when page or sort changes
 
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/categories');
-      setCategories(response.data.data || []);
+      // Handle different response structures
+      const data = response.data?.data || (Array.isArray(response.data) ? response.data : []);
+      setCategories(data);
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -76,16 +79,20 @@ const CarsPage = () => {
       const response = await searchCars(params);
       const data = response.data;
 
-      setCars(data.content || []);
+      // Handle response structure
+      const content = data.content || (Array.isArray(data) ? data : []);
+      
+      setCars(content);
       setPagination((prev) => ({
         ...prev,
-        totalPages: data.totalPages || 0,
-        totalElements: data.totalElements || 0,
+        totalPages: data.totalPages || 1, // Default to 1 if not present
+        totalElements: data.totalElements || content.length,
       }));
       setError(null);
     } catch (err) {
       console.error('Error fetching cars:', err);
       setError('Không thể tải danh sách xe. Vui lòng thử lại sau.');
+      setCars([]);
     } finally {
       setLoading(false);
     }
@@ -93,42 +100,36 @@ const CarsPage = () => {
 
   const handleFilterChange = (name, value) => {
     setFilters((prev) => ({ ...prev, [name]: value }));
-    setPagination((prev) => ({ ...prev, currentPage: 0 }));
-
-    // Update URL params
-    const newParams = new URLSearchParams(searchParams);
-    if (value) {
-      newParams.set(name, value);
-    } else {
-      newParams.delete(name);
-    }
-    setSearchParams(newParams);
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  // Apply filters button handler
+  const applyFilters = () => {
     setPagination((prev) => ({ ...prev, currentPage: 0 }));
+    // Update URL
+    const newParams = new URLSearchParams();
+    Object.keys(filters).forEach(key => {
+        if (filters[key]) newParams.set(key, filters[key]);
+    });
+    setSearchParams(newParams);
     fetchCars();
   };
 
   const handlePageChange = (newPage) => {
-    setPagination((prev) => ({ ...prev, currentPage: newPage }));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (newPage >= 0 && newPage < pagination.totalPages) {
+        setPagination((prev) => ({ ...prev, currentPage: newPage }));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const clearFilters = () => {
     setFilters({
-      keyword: '',
-      categoryId: '',
-      minPrice: '',
-      maxPrice: '',
-      year: '',
-      color: '',
-      sortBy: 'id',
-      sortDir: 'DESC',
+      keyword: '', categoryId: '', minPrice: '', maxPrice: '', year: '', color: '', sortBy: 'id', sortDir: 'DESC',
     });
     setSearchParams({});
     setPagination((prev) => ({ ...prev, currentPage: 0 }));
+    // We need to trigger fetch explicitly or via useEffect dependency if we added filters to it
+    // For now, let's just reload the page state which will trigger useEffect
+    setTimeout(() => fetchCars(), 0); 
   };
 
   const handleScheduleTestDrive = (car) => {
@@ -148,7 +149,7 @@ const CarsPage = () => {
         alert('Vui lòng điền đầy đủ thông tin');
         return;
       }
-      const testDriveFee = Math.floor(selectedCarForTestDrive.price * 0.03); // 3% of car price
+      const testDriveFee = Math.floor(selectedCarForTestDrive.price * 0.03);
       const response = await drivertestApi.createDrivertest({
         carId: selectedCarForTestDrive.id,
         testDate: new Date(testDriveData.testDate).toISOString(),
@@ -156,7 +157,6 @@ const CarsPage = () => {
         fee: testDriveFee,
       });
 
-      // If VNPay payment selected, redirect to payment
       if (testDrivePaymentMethod === 'vnpay' && response.data) {
         try {
           const paymentResponse = await createVNPayPayment({
@@ -194,270 +194,260 @@ const CarsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-10">
       <div className="container mx-auto px-4">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Danh Sách Xe Mercedes-Benz</h1>
-          <p className="text-gray-600">
-            Tìm thấy {pagination.totalElements} xe phù hợp
-          </p>
+        <div className="mb-8 flex flex-col md:flex-row justify-between items-end gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Danh Sách Xe</h1>
+            <p className="text-gray-600">Khám phá các dòng xe sang trọng và đẳng cấp</p>
+          </div>
+          <div className="flex items-center gap-2">
+             <span className="text-sm text-gray-500">Sắp xếp:</span>
+             <select 
+                value={`${filters.sortBy}-${filters.sortDir}`}
+                onChange={(e) => {
+                    const [sortBy, sortDir] = e.target.value.split('-');
+                    setFilters(prev => ({ ...prev, sortBy, sortDir }));
+                }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+             >
+                 <option value="id-DESC">Mới nhất</option>
+                 <option value="price-ASC">Giá: Thấp đến Cao</option>
+                 <option value="price-DESC">Giá: Cao đến Thấp</option>
+                 <option value="manufactureYear-DESC">Đời xe: Mới nhất</option>
+             </select>
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters Sidebar */}
-          <aside className="lg:w-1/4">
-            <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-800">Bộ lọc</h2>
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="lg:hidden text-blue-600"
-                >
-                  {showFilters ? 'Ẩn' : 'Hiện'}
-                </button>
+          <aside className={`lg:w-1/4 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-24">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <FaFilter className="text-blue-600"/> Bộ lọc tìm kiếm
+                </h2>
+                <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline">Đặt lại</button>
               </div>
 
-              <div className={`space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
-                {/* Search */}
+              <div className="space-y-5">
+                {/* Search Keyword */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tìm kiếm
-                  </label>
-                  <input
-                    type="text"
-                    value={filters.keyword}
-                    onChange={(e) => handleFilterChange('keyword', e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch(e)}
-                    placeholder="Tên xe..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Tên xe</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={filters.keyword}
+                      onChange={(e) => handleFilterChange('keyword', e.target.value)}
+                      placeholder="Nhập tên xe..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                    />
+                    <FaSearch className="absolute left-3 top-2.5 text-gray-400 text-sm" />
+                  </div>
                 </div>
 
                 {/* Category */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Danh mục
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Dòng xe</label>
                   <select
                     value={filters.categoryId}
                     onChange={(e) => handleFilterChange('categoryId', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                   >
-                    <option value="">Tất cả</option>
+                    <option value="">Tất cả dòng xe</option>
                     {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
 
                 {/* Price Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Khoảng giá (VNĐ)
-                  </label>
-                  <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Khoảng giá (VNĐ)</label>
+                  <div className="flex gap-2">
                     <input
                       type="number"
                       value={filters.minPrice}
                       onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-                      placeholder="Từ"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Min"
+                      className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     />
                     <input
                       type="number"
                       value={filters.maxPrice}
                       onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-                      placeholder="Đến"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Max"
+                      className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     />
                   </div>
                 </div>
 
-                {/* Year */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Năm sản xuất
-                  </label>
-                  <input
-                    type="number"
-                    value={filters.year}
-                    onChange={(e) => handleFilterChange('year', e.target.value)}
-                    placeholder="2024"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                {/* Year & Color */}
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Năm SX</label>
+                        <input
+                            type="number"
+                            value={filters.year}
+                            onChange={(e) => handleFilterChange('year', e.target.value)}
+                            placeholder="VD: 2024"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Màu sắc</label>
+                        <input
+                            type="text"
+                            value={filters.color}
+                            onChange={(e) => handleFilterChange('color', e.target.value)}
+                            placeholder="VD: Đen"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        />
+                    </div>
                 </div>
 
-                {/* Color */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Màu sắc
-                  </label>
-                  <input
-                    type="text"
-                    value={filters.color}
-                    onChange={(e) => handleFilterChange('color', e.target.value)}
-                    placeholder="Đen, Trắng..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Sort By */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sắp xếp theo
-                  </label>
-                  <select
-                    value={filters.sortBy}
-                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="id">Mới nhất</option>
-                    <option value="price">Giá</option>
-                    <option value="name">Tên</option>
-                    <option value="manufactureYear">Năm sản xuất</option>
-                  </select>
-                </div>
-
-                {/* Sort Direction */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Thứ tự
-                  </label>
-                  <select
-                    value={filters.sortDir}
-                    onChange={(e) => handleFilterChange('sortDir', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="DESC">Giảm dần</option>
-                    <option value="ASC">Tăng dần</option>
-                  </select>
-                </div>
-
-                {/* Clear Filters */}
                 <button
-                  onClick={clearFilters}
-                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition"
+                    onClick={applyFilters}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition shadow-sm"
                 >
-                  Xóa bộ lọc
+                    Áp dụng bộ lọc
                 </button>
               </div>
             </div>
           </aside>
 
+          {/* Mobile Filter Toggle */}
+          <div className="lg:hidden mb-4">
+            <button 
+                onClick={() => setShowFilters(!showFilters)} 
+                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 py-2.5 rounded-lg font-medium text-gray-700 shadow-sm"
+            >
+                <FaFilter /> {showFilters ? 'Ẩn bộ lọc' : 'Hiển thị bộ lọc'}
+            </button>
+          </div>
+
           {/* Cars Grid */}
           <main className="lg:w-3/4">
             {loading ? (
-              <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {[...Array(6)].map((_, i) => (
+                     <div key={i} className="bg-white rounded-xl shadow-sm h-80 animate-pulse">
+                         <div className="h-48 bg-gray-200 rounded-t-xl"></div>
+                         <div className="p-4 space-y-3">
+                             <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+                             <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                             <div className="h-8 bg-gray-200 rounded w-full"></div>
+                         </div>
+                     </div>
+                 ))}
               </div>
             ) : error ? (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-center">
                 {error}
               </div>
             ) : cars.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">Không tìm thấy xe phù hợp</p>
-                <button
-                  onClick={clearFilters}
-                  className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Xóa bộ lọc
-                </button>
+              <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+                <div className="text-gray-300 text-6xl mb-4 mx-auto"><FaCar /></div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Không tìm thấy xe phù hợp</h3>
+                <p className="text-gray-500 mb-6">Vui lòng thử lại với các tiêu chí tìm kiếm khác.</p>
+                <button onClick={clearFilters} className="text-blue-600 font-medium hover:underline">Xóa toàn bộ lọc</button>
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {cars.map((car) => (
-                    <Link
-                      key={car.id}
-                      to={`/cars/${car.id}`}
-                      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
-                    >
-                      <div className="relative h-48 bg-gray-200">
-                        {car.image ? (
-                          <img
-                            src={car.image}
-                            alt={car.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-gray-400">
-                            <span className="text-6xl">🚗</span>
-                          </div>
-                        )}
-                        {car.averageRating > 0 && (
-                          <div className="absolute top-2 right-2 bg-yellow-400 text-white px-2 py-1 rounded-full text-xs font-semibold">
-                            ⭐ {car.averageRating.toFixed(1)}
-                          </div>
-                        )}
+                    <div key={car.id} className="group bg-white rounded-xl shadow-sm hover:shadow-xl border border-gray-100 overflow-hidden transition-all duration-300 flex flex-col h-full">
+                      {/* Image */}
+                      <div className="relative h-48 bg-gray-100 overflow-hidden">
+                        <Link to={`/cars/${car.id}`}>
+                            {car.image ? (
+                            <img
+                                src={car.image}
+                                alt={car.name}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            ) : (
+                            <div className="flex items-center justify-center h-full text-gray-300 text-5xl">
+                                <FaCar />
+                            </div>
+                            )}
+                        </Link>
+                        <div className="absolute top-3 right-3">
+                            <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold text-gray-700 shadow-sm border border-gray-100">
+                                {car.manufactureYear}
+                            </span>
+                        </div>
                       </div>
-                      <div className="p-4">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800 line-clamp-1">
-                          {car.name}
-                        </h3>
-                        <div className="mb-3">
-                          <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">
-                            {car.category?.name || 'N/A'}
-                          </span>
+
+                      {/* Content */}
+                      <div className="p-5 flex flex-col flex-1">
+                        <div className="mb-auto">
+                            <Link to={`/cars/${car.id}`}>
+                                <h3 className="text-lg font-bold text-gray-900 mb-1 hover:text-blue-600 transition line-clamp-1" title={car.name}>
+                                {car.name}
+                                </h3>
+                            </Link>
+                            <p className="text-sm text-gray-500 mb-3">{car.category?.name || 'Sedan'}</p>
+                            
+                            <div className="flex items-center gap-4 text-xs text-gray-500 mb-4 border-t border-gray-50 pt-3">
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-gray-400"></span> {car.color || 'Tiêu chuẩn'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-gray-400"></span> {car.seats} Chỗ
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-gray-400"></span> {car.transmission || 'Tự động'}
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                          <span>Năm: {car.manufactureYear}</span>
-                          <span>{car.seats} chỗ</span>
+
+                        <div className="mt-2">
+                            <div className="text-xl font-bold text-blue-700 mb-4">
+                                {formatPrice(car.price)}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Link 
+                                    to={`/cars/${car.id}`}
+                                    className="text-center py-2 rounded-lg border border-gray-200 text-gray-700 font-medium text-sm hover:bg-gray-50 transition"
+                                >
+                                    Chi tiết
+                                </Link>
+                                <button
+                                    onClick={() => handleScheduleTestDrive(car)}
+                                    className="bg-gray-900 hover:bg-black text-white font-medium py-2 rounded-lg text-sm transition"
+                                >
+                                    Lái thử
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-xl font-bold text-blue-600">
-                            {formatPrice(car.price)}
-                          </span>
-                          <span className="text-blue-600 font-semibold">Chi tiết →</span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleScheduleTestDrive(car);
-                          }}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition text-sm"
-                        >
-                          Đặt lịch lái thử
-                        </button>
                       </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
 
                 {/* Pagination */}
                 {pagination.totalPages > 1 && (
-                  <div className="flex justify-center items-center space-x-2 mt-8">
+                  <div className="mt-10 flex justify-center items-center gap-2">
                     <button
                       onClick={() => handlePageChange(pagination.currentPage - 1)}
                       disabled={pagination.currentPage === 0}
-                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-10 h-10 flex items-center justify-center rounded-lg border bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
-                      ← Trước
+                      <FaChevronLeft className="text-gray-600" />
                     </button>
-                    <div className="flex space-x-2">
-                      {[...Array(pagination.totalPages)].map((_, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handlePageChange(index)}
-                          className={`px-4 py-2 rounded-lg ${
-                            pagination.currentPage === index
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {index + 1}
-                        </button>
-                      ))}
-                    </div>
+                    
+                    <span className="text-sm text-gray-600 font-medium px-2">
+                        Trang {pagination.currentPage + 1} / {pagination.totalPages}
+                    </span>
+
                     <button
                       onClick={() => handlePageChange(pagination.currentPage + 1)}
                       disabled={pagination.currentPage === pagination.totalPages - 1}
-                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-10 h-10 flex items-center justify-center rounded-lg border bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
-                      Sau →
+                      <FaChevronRight className="text-gray-600" />
                     </button>
                   </div>
                 )}
@@ -469,105 +459,92 @@ const CarsPage = () => {
 
       {/* Test Drive Modal */}
       {showTestDriveForm && selectedCarForTestDrive && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800">Đặt lịch lái thử</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Đăng Ký Lái Thử</h2>
               <button
                 onClick={() => setShowTestDriveForm(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
+                className="text-gray-400 hover:text-gray-600 transition"
               >
-                ×
+                ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmitTestDrive} className="p-6 space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Xe: <span className="font-semibold text-gray-900">{selectedCarForTestDrive.name}</span>
-                </label>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Giá xe</label>
-                <div className="text-2xl font-bold text-blue-600 mb-3">
-                  {formatPrice(selectedCarForTestDrive.price)}
-                </div>
-                <div className="border-t border-blue-100 pt-3">
-                  <p className="text-xs text-gray-600 mb-1">Phí lái thử (3% giá xe):</p>
-                  <p className="text-lg font-bold text-blue-600">
-                    {formatPrice(Math.floor(selectedCarForTestDrive.price * 0.03))}
-                  </p>
-                </div>
+            <form onSubmit={handleSubmitTestDrive} className="p-6">
+              <div className="flex items-start gap-4 mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                 <div className="w-20 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                    {selectedCarForTestDrive.image ? (
+                        <img src={selectedCarForTestDrive.image} alt="" className="w-full h-full object-cover" />
+                    ) : <div className="w-full h-full flex items-center justify-center"><FaCar className="text-gray-400"/></div>}
+                 </div>
+                 <div>
+                     <h3 className="font-bold text-gray-900 text-sm mb-1">{selectedCarForTestDrive.name}</h3>
+                     <p className="text-xs text-gray-600 mb-1">Giá xe: {formatPrice(selectedCarForTestDrive.price)}</p>
+                     <div className="flex items-center gap-1 text-blue-700 font-bold text-sm">
+                        <FaMoneyBillWave /> Phí cọc: {formatPrice(Math.floor(selectedCarForTestDrive.price * 0.03))}
+                     </div>
+                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngày và giờ lái <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={testDriveData.testDate}
-                  onChange={(e) => setTestDriveData({ ...testDriveData, testDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Địa điểm <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={testDriveData.testLocation}
-                  onChange={(e) => setTestDriveData({ ...testDriveData, testLocation: e.target.value })}
-                  placeholder="VD: Showroom Mercedes Hà Nội"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phương thức thanh toán
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Thời gian lái thử</label>
+                  <div className="relative">
                     <input
-                      type="radio"
-                      name="testDrivePayment"
-                      value="direct"
-                      checked={testDrivePaymentMethod === 'direct'}
-                      onChange={(e) => setTestDrivePaymentMethod(e.target.value)}
-                      className="w-4 h-4 text-blue-600"
+                      type="datetime-local"
+                      value={testDriveData.testDate}
+                      onChange={(e) => setTestDriveData({ ...testDriveData, testDate: e.target.value })}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                      required
                     />
-                    <span className="ml-2 text-sm text-gray-700">Thanh toán trực tiếp</span>
-                  </label>
-                  <label className="flex items-center p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <FaCalendarAlt className="absolute left-3.5 top-3 text-gray-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Địa điểm nhận xe</label>
+                  <div className="relative">
                     <input
-                      type="radio"
-                      name="testDrivePayment"
-                      value="vnpay"
-                      checked={testDrivePaymentMethod === 'vnpay'}
-                      onChange={(e) => setTestDrivePaymentMethod(e.target.value)}
-                      className="w-4 h-4 text-blue-600"
+                      type="text"
+                      value={testDriveData.testLocation}
+                      onChange={(e) => setTestDriveData({ ...testDriveData, testLocation: e.target.value })}
+                      placeholder="VD: Showroom Hà Nội..."
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                      required
                     />
-                    <span className="ml-2 text-sm text-gray-700">VNPay</span>
-                  </label>
+                    <FaMapMarkerAlt className="absolute left-3.5 top-3 text-gray-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Thanh toán phí cọc</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className={`cursor-pointer border rounded-lg p-3 flex items-center justify-center gap-2 text-sm font-medium transition ${testDrivePaymentMethod === 'direct' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input type="radio" name="payment" value="direct" checked={testDrivePaymentMethod === 'direct'} onChange={e=>setTestDrivePaymentMethod(e.target.value)} className="hidden" />
+                        Tiền mặt
+                    </label>
+                    <label className={`cursor-pointer border rounded-lg p-3 flex items-center justify-center gap-2 text-sm font-medium transition ${testDrivePaymentMethod === 'vnpay' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input type="radio" name="payment" value="vnpay" checked={testDrivePaymentMethod === 'vnpay'} onChange={e=>setTestDrivePaymentMethod(e.target.value)} className="hidden" />
+                        VNPay QR
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition"
-                >
-                  Đặt lịch
-                </button>
+              <div className="mt-8 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowTestDriveForm(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 rounded-lg transition"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition text-sm"
                 >
-                  Hủy
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-md transition text-sm"
+                >
+                  Xác nhận đặt lịch
                 </button>
               </div>
             </form>

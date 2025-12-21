@@ -56,6 +56,9 @@ const Navbar = () => {
                 >
                   Đơn hàng
                 </Link>
+                <Link to="/drivertests" className="text-gray-700 hover:text-blue-600 font-medium transition">
+                  Lái thử
+                </Link>
               </>
             )}
           </div>

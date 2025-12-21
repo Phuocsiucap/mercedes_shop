@@ -23,6 +23,7 @@ const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const DrivertestPage = lazy(() => import("./pages/DrivertestPage"));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -231,6 +232,18 @@ function App() {
                   <Layout>
                     <Suspense fallback={<LoadingSpinner />}>
                       <ProfilePage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/drivertests"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>  
+                      <DrivertestPage />
                     </Suspense>
                   </Layout>
                 </ProtectedRoute>
