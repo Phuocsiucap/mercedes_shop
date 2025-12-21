@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const AdminCars = () => {
   const [cars, setCars] = useState([]);
@@ -9,410 +9,192 @@ const AdminCars = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
-    categoryId: '',
-    price: '',
-    manufactureYear: '',
-    color: '',
-    engine: '',
-    transmission: '',
-    seats: '',
-    image: '',
-    description: '',
+    name: '', categoryId: '', price: '', manufactureYear: '',
+    color: '', engine: '', transmission: '', seats: '', image: '', description: ''
   });
-  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
-    fetchCars();
-    fetchCategories();
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [carRes, catRes] = await Promise.all([axios.get('/cars'), axios.get('/categories')]);
+            let carData = [];
+            if (carRes.data?.data?.content) carData = carRes.data.data.content;
+            else if (Array.isArray(carRes.data?.data)) carData = carRes.data.data;
+            else if (Array.isArray(carRes.data)) carData = carRes.data;
+            setCars(carData);
+            const catData = Array.isArray(catRes.data?.data) ? catRes.data.data : (Array.isArray(catRes.data) ? catRes.data : []);
+            setCategories(catData);
+        } catch (error) { console.error(error); } 
+        finally { setLoading(false); }
+    };
+    loadData();
   }, []);
 
-  const fetchCars = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/cars');
-      // Handle paginated response format
-      let data = [];
-      if (response.data?.data?.content) {
-        // Pagination format: {content: [...], pageable: {...}, ...}
-        data = response.data.data.content;
-      } else if (Array.isArray(response.data?.data)) {
-        // Array format: response.data.data
-        data = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        // Direct array format: response.data
-        data = response.data;
-      }
-      setCars(data);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching cars:', err);
-      setError('Không thể tải danh sách xe');
-      setCars([]); // Set empty array on error
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await axios.get('/categories');
-      // Handle both response.data.data and response.data formats
-      const data = Array.isArray(response.data?.data) 
-        ? response.data.data 
-        : Array.isArray(response.data) 
-        ? response.data 
-        : [];
-      setCategories(data);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-      setCategories([]); // Set empty array on error
-    }
-  };
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, categoryFilter]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.name.trim() || !formData.categoryId || !formData.price) {
-      setError('Vui lòng điền đầy đủ thông tin');
-      return;
-    }
-
     try {
-      const submitData = {
-        ...formData,
-        categoryId: formData.categoryId.toString(),
-        price: parseFloat(formData.price),
-        manufactureYear: parseInt(formData.manufactureYear),
-        seats: parseInt(formData.seats),
-      };
+        const payload = { ...formData, categoryId: formData.categoryId.toString(), price: parseFloat(formData.price), manufactureYear: parseInt(formData.manufactureYear), seats: parseInt(formData.seats) };
+        if (editingId) await axios.put(`/cars/${editingId}`, payload);
+        else await axios.post('/cars', payload);
+        alert('Thành công');
+        resetForm();
+        const res = await axios.get('/cars');
+        setCars(res.data?.data || res.data || []);
+    } catch (err) { alert(err.response?.data?.message || 'Lỗi'); }
+  };
 
-      if (editingId) {
-        await axios.put(`/cars/${editingId}`, submitData);
-        alert('Cập nhật thành công');
-      } else {
-        await axios.post('/cars', submitData);
-        alert('Thêm mới thành công');
-      }
-
-      resetForm();
-      fetchCars();
-    } catch (err) {
-      console.error('Error:', err);
-      setError(err.response?.data?.message || 'Có lỗi xảy ra');
+  const handleDelete = async (id) => {
+    if(window.confirm('Xóa xe này?')) {
+        try { await axios.delete(`/cars/${id}`); alert('Đã xóa'); const res = await axios.get('/cars'); setCars(res.data?.data || res.data || []); } catch(e) { alert('Lỗi'); }
     }
   };
 
   const handleEdit = (car) => {
     setFormData({
-      name: car.name,
-      categoryId: car.categoryId,
-      price: car.price,
-      manufactureYear: car.manufactureYear,
-      color: car.color,
-      engine: car.engine,
-      transmission: car.transmission,
-      seats: car.seats,
-      image: car.image,
-      description: car.description,
+        name: car.name, categoryId: car.categoryId, price: car.price, manufactureYear: car.manufactureYear,
+        color: car.color, engine: car.engine, transmission: car.transmission, seats: car.seats, image: car.image, description: car.description
     });
     setEditingId(car.id);
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Bạn chắc chắn muốn xóa?')) {
-      try {
-        await axios.delete(`/cars/${id}`);
-        alert('Xóa thành công');
-        fetchCars();
-      } catch (err) {
-        console.error('Error:', err);
-        alert('Có lỗi xảy ra khi xóa');
-      }
-    }
-  };
-
   const resetForm = () => {
-    setFormData({
-      name: '',
-      categoryId: '',
-      price: '',
-      manufactureYear: '',
-      color: '',
-      engine: '',
-      transmission: '',
-      seats: '',
-      image: '',
-      description: '',
-    });
+    setFormData({ name: '', categoryId: '', price: '', manufactureYear: '', color: '', engine: '', transmission: '', seats: '', image: '', description: '' });
     setEditingId(null);
     setShowForm(false);
-    setError(null);
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
-  };
+  const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
+
+  const filteredCars = cars.filter(car => {
+    if (categoryFilter !== 'ALL' && car.categoryId !== categoryFilter) return false;
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    return car.name.toLowerCase().includes(q);
+  });
+
+  const totalItems = filteredCars.length;
+  const paginatedCars = filteredCars.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Quản Lý Ô Tô</h1>
-        <button
-          onClick={() => (showForm ? resetForm() : setShowForm(true))}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-semibold"
-        >
-          <FaPlus /> {showForm ? 'Hủy' : 'Thêm Ô Tô'}
+        <button onClick={() => (showForm ? resetForm() : setShowForm(true))} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+            <FaPlus /> {showForm ? 'Hủy' : 'Thêm Xe'}
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {/* Form */}
       {showForm && (
-        <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
-            {editingId ? '✏️ Cập Nhật Ô Tô' : '➕ Thêm Ô Tô Mới'}
-          </h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tên Xe <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="Nhập tên xe"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Danh Mục <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              >
-                <option value="">-- Chọn danh mục --</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Giá <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="0"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Năm Sản Xuất
-              </label>
-              <input
-                type="number"
-                value={formData.manufactureYear}
-                onChange={(e) => setFormData({ ...formData, manufactureYear: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="2024"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Màu Sắc
-              </label>
-              <input
-                type="text"
-                value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="Đen, Trắng, ..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Động Cơ
-              </label>
-              <input
-                type="text"
-                value={formData.engine}
-                onChange={(e) => setFormData({ ...formData, engine: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="2.0L, 3.0L, ..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Hộp Số
-              </label>
-              <input
-                type="text"
-                value={formData.transmission}
-                onChange={(e) => setFormData({ ...formData, transmission: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="Tự động, Số tay, ..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Số Chỗ Ngồi
-              </label>
-              <input
-                type="number"
-                value={formData.seats}
-                onChange={(e) => setFormData({ ...formData, seats: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="5"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                URL Hình Ảnh
-              </label>
-              <input
-                type="text"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="https://example.com/image.jpg"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Mô Tả
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                rows="3"
-                placeholder="Nhập mô tả chi tiết về xe..."
-              />
-            </div>
-
-            <div className="md:col-span-2 flex gap-3 pt-4">
-              <button
-                type="submit"
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition font-semibold flex items-center justify-center gap-2"
-              >
-                {editingId ? '💾 Cập Nhật' : '➕ Thêm Mới'}
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2.5 rounded-lg transition font-semibold"
-              >
-                Hủy
-              </button>
-            </div>
-          </form>
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6 animate-fade-in">
+            <h2 className="text-lg font-bold mb-4">{editingId ? 'Cập Nhật' : 'Thêm Mới'}</h2>
+            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="Tên xe" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="border p-2 rounded" required />
+                <select value={formData.categoryId} onChange={e=>setFormData({...formData, categoryId: e.target.value})} className="border p-2 rounded" required>
+                    <option value="">Chọn danh mục</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <input type="number" placeholder="Giá" value={formData.price} onChange={e=>setFormData({...formData, price: e.target.value})} className="border p-2 rounded" required />
+                <input type="number" placeholder="Năm SX" value={formData.manufactureYear} onChange={e=>setFormData({...formData, manufactureYear: e.target.value})} className="border p-2 rounded" />
+                <input type="text" placeholder="Màu sắc" value={formData.color} onChange={e=>setFormData({...formData, color: e.target.value})} className="border p-2 rounded" />
+                <input type="text" placeholder="Động cơ" value={formData.engine} onChange={e=>setFormData({...formData, engine: e.target.value})} className="border p-2 rounded" />
+                <input type="text" placeholder="Hộp số" value={formData.transmission} onChange={e=>setFormData({...formData, transmission: e.target.value})} className="border p-2 rounded" />
+                <input type="number" placeholder="Số chỗ" value={formData.seats} onChange={e=>setFormData({...formData, seats: e.target.value})} className="border p-2 rounded" />
+                <input type="text" placeholder="Link ảnh" value={formData.image} onChange={e=>setFormData({...formData, image: e.target.value})} className="border p-2 rounded col-span-2" />
+                <textarea placeholder="Mô tả" value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} className="border p-2 rounded col-span-2" rows="2" />
+                <div className="col-span-2 flex gap-2 justify-end">
+                    <button type="button" onClick={resetForm} className="bg-gray-300 text-black px-6 py-2 rounded hover:bg-gray-400">Hủy</button>
+                    <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Lưu</button>
+                </div>
+            </form>
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
+      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+        <div className="p-4 border-b flex gap-4">
+            <input type="text" placeholder="Tìm tên xe..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="border p-2 rounded w-1/3" />
+            <select value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)} className="border p-2 rounded">
+                <option value="ALL">Tất cả danh mục</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+        </div>
+        <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-100 border-b-2 border-gray-300">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Tên
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Danh Mục
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Giá
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Năm
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Hành Động
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {cars.map((car) => (
-                  <tr key={car.id} className="hover:bg-blue-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                        {categories.find((c) => c.id === car.categoryId)?.name || '-'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      {formatPrice(car.price)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {car.manufactureYear}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handleEdit(car)}
-                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 p-2 rounded-lg transition font-semibold"
-                          title="Cập nhật"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(car.id)}
-                          className="text-red-600 hover:text-red-800 hover:bg-red-100 p-2 rounded-lg transition font-semibold"
-                          title="Xóa"
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                <thead className="bg-gray-50 border-b">
+                    <tr>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Tên</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Danh mục</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Giá</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Năm</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y">
+                    {paginatedCars.map(car => (
+                        <tr key={car.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 text-sm font-medium">{car.name}</td>
+                            <td className="px-6 py-4 text-sm text-blue-600">{categories.find(c => c.id === car.categoryId)?.name || '-'}</td>
+                            <td className="px-6 py-4 text-sm font-semibold">{formatPrice(car.price)}</td>
+                            <td className="px-6 py-4 text-sm">{car.manufactureYear}</td>
+                            <td className="px-6 py-4 flex gap-2">
+                                <button onClick={()=>handleEdit(car)} className="text-blue-600 hover:text-blue-800"><FaEdit /></button>
+                                <button onClick={()=>handleDelete(car.id)} className="text-red-600 hover:text-red-800"><FaTrash /></button>
+                            </td>
+                        </tr>
+                    ))}
+                    {paginatedCars.length === 0 && <tr><td colSpan="5" className="text-center py-4">Không có dữ liệu</td></tr>}
+                </tbody>
             </table>
-            {cars.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <p className="text-lg">Chưa có ô tô nào</p>
-                <p className="text-sm">Nhấn nút "Thêm Ô Tô" để thêm mới</p>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
+        
+        {/* Pagination */}
+        <Pagination currentPage={currentPage} totalItems={totalItems} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setCurrentPage} />
       </div>
     </div>
   );
+};
+
+// --- SUB-COMPONENT: Pagination ---
+const Pagination = ({ currentPage, totalItems, itemsPerPage, onPageChange }) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    if (totalPages <= 1) return null;
+
+    const renderPageNumbers = () => {
+        const pageNumbers = [];
+        const maxVisibleButtons = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisibleButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisibleButtons - 1);
+
+        if (endPage - startPage + 1 < maxVisibleButtons) {
+            startPage = Math.max(1, endPage - maxVisibleButtons + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(
+                <button key={i} onClick={() => onPageChange(i)} className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm font-medium transition ${currentPage === i ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{i}</button>
+            );
+        }
+        return pageNumbers;
+    };
+
+    return (
+        <div className="px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 bg-gray-50 gap-4">
+            <div className="text-sm text-gray-500">Hiển thị <span className="font-medium">{Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}</span> đến <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span> của <span className="font-medium">{totalItems}</span></div>
+            <div className="flex items-center gap-2">
+                <button onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"><FaChevronLeft size={12} /></button>
+                {renderPageNumbers()}
+                <button onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"><FaChevronRight size={12} /></button>
+            </div>
+        </div>
+    );
 };
 
 export default AdminCars;

@@ -123,10 +123,16 @@ public class DrivertestService {
     private DrivertestResponse mapToResponse(Drivertest drivertest) {
         return DrivertestResponse.builder()
                 .id(drivertest.getId())
-                .userId(drivertest.getUser().getId())
-                .userName(drivertest.getUser().getFullName())
-                .carId(drivertest.getCar().getId())
-                .carName(drivertest.getCar().getName())
+                // Kiểm tra User có null không
+                .userId(drivertest.getUser() != null ? drivertest.getUser().getId() : null)
+                .userName(drivertest.getUser() != null ? drivertest.getUser().getFullName() : "Khách hàng ẩn danh")
+
+                // --- FIX LỖI TẠI ĐÂY ---
+                // Kiểm tra Car có null không trước khi gọi getId() hay getName()
+                .carId(drivertest.getCar() != null ? drivertest.getCar().getId() : null)
+                .carName(drivertest.getCar() != null ? drivertest.getCar().getName() : "Xe không tồn tại (Đã bị xóa)")
+                // -----------------------
+
                 .testDate(drivertest.getTestDate())
                 .testLocation(drivertest.getTestLocation())
                 .fee(drivertest.getFee())

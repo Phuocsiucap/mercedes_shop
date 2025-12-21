@@ -51,8 +51,10 @@ public class OrderService {
         User currentUser = authService.getCurrentUser();
 
         // Check if user owns this order or is admin
-        if (!order.getUser().getId().equals(currentUser.getId()) &&
-            currentUser.getRole() != User.Role.ADMIN) {
+        // Added null check for order.getUser() just in case user is deleted
+        if (order.getUser() != null &&
+                !order.getUser().getId().equals(currentUser.getId()) &&
+                currentUser.getRole() != User.Role.ADMIN) {
             throw new BadRequestException("Bạn không có quyền xem đơn hàng này");
         }
 
@@ -137,7 +139,8 @@ public class OrderService {
         User currentUser = authService.getCurrentUser();
 
         // Check if user owns this order
-        if (!order.getUser().getId().equals(currentUser.getId())) {
+        // Added null check for order.getUser()
+        if (order.getUser() != null && !order.getUser().getId().equals(currentUser.getId())) {
             throw new BadRequestException("Bạn không có quyền hủy đơn hàng này");
         }
 
@@ -156,25 +159,38 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
+    // --- FIX APPLIED HERE ---
     private OrderResponse mapToResponse(Order order) {
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrder(order);
 
         List<OrderResponse.OrderDetailResponse> orderDetailResponses = orderDetails.stream()
-                .map(detail -> OrderResponse.OrderDetailResponse.builder()
-                        .id(detail.getId())
-                        .carId(detail.getCar().getId())
-                        .carName(detail.getCar().getName())
-                        .carImage(detail.getCar().getImage())
-                        .quantity(detail.getQuantity())
-                        .unitPrice(detail.getUnitPrice())
-                        .subtotal(detail.getUnitPrice().multiply(new BigDecimal(detail.getQuantity())))
-                        .build())
+                .map(detail -> {
+                    // Extract Car logic to handle Null values safely
+                    Car car = detail.getCar();
+                    String carId = (car != null) ? car.getId() : null;
+                    String carName = (car != null) ? car.getName() : "Sản phẩm không tồn tại (Đã xóa)";
+                    String carImage = (car != null) ? car.getImage() : null;
+
+                    return OrderResponse.OrderDetailResponse.builder()
+                            .id(detail.getId())
+                            .carId(carId)
+                            .carName(carName)
+                            .carImage(carImage)
+                            .quantity(detail.getQuantity())
+                            .unitPrice(detail.getUnitPrice())
+                            .subtotal(detail.getUnitPrice().multiply(new BigDecimal(detail.getQuantity())))
+                            .build();
+                })
                 .collect(Collectors.toList());
+
+        // Also safeguard against User being null (if user was deleted)
+        String userId = (order.getUser() != null) ? order.getUser().getId() : null;
+        String userName = (order.getUser() != null) ? order.getUser().getFullName() : "Người dùng ẩn danh";
 
         return OrderResponse.builder()
                 .id(order.getId())
-                .userId(order.getUser().getId())
-                .userName(order.getUser().getFullName())
+                .userId(userId)
+                .userName(userName)
                 .orderDate(order.getOrderDate())
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus())

@@ -1,471 +1,284 @@
 import { useState, useEffect } from 'react';
 import * as drivertestApi from '../../api/drivertestApi';
-import * as carApi from '../../api/carApi'; // Giả sử bạn đã có carApi tương tự
+import * as carApi from '../../api/carApi';
 import * as userApi from '../../api/userApi';
-import { FaEye, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const AdminDrivertest = () => {
   const [drivertests, setDrivertests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDrivertest, setSelectedDrivertest] = useState(null);
-  const [showDetail, setShowDetail] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  
-  // Form State
-  const [formData, setFormData] = useState({
-    userId: '',
-    carId: '',
-    testDate: '',
-    testLocation: '',
-    fee: '',
-  });
+  const [formData, setFormData] = useState({ userId: '', carId: '', testDate: '', testLocation: '', fee: '' });
   
   const [cars, setCars] = useState([]);
   const [users, setUsers] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  
+  // Filters & Pagination
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
-    fetchDrivertests();
-    fetchCars();
-    fetchUsers();
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [dtRes, carRes, userRes] = await Promise.all([
+                drivertestApi.getAllDrivertests(),
+                carApi.getAllCars(),
+                userApi.getAllUsers()
+            ]);
+            setDrivertests(dtRes.data || []);
+            setCars(carRes.data?.content || carRes.data || []);
+            setUsers(userRes.data || []);
+        } catch (e) { console.error(e); } 
+        finally { setLoading(false); }
+    };
+    fetchData();
   }, []);
 
-  const fetchDrivertests = async () => {
-    try {
-      setLoading(true);
-      const response = await drivertestApi.getAllDrivertests();
-      
-      // Backend trả về ApiResponse: { success: true, data: [...] }
-      // Kiểm tra cấu trúc trả về để set state cho đúng
-      if (response && response.data) {
-          setDrivertests(response.data);
-      } else if (Array.isArray(response)) {
-          setDrivertests(response);
-      } else {
-          setDrivertests([]);
-      }
-    } catch (err) {
-      console.error('Error fetching drivertests:', err);
-      setDrivertests([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCars = async () => {
-    try {
-      const response = await carApi.getAllCars();
-      // Xử lý tương tự với Car Response
-      if (response?.data?.content) {
-         setCars(response.data.content); // Nếu có phân trang
-      } else if (response?.data) {
-         setCars(response.data);
-      } else if (Array.isArray(response)) {
-         setCars(response);
-      }
-    } catch (err) {
-      console.error('Error fetching cars:', err);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const response = await userApi.getAllUsers();
-      let data = [];
-      if (Array.isArray(response?.data)) {
-        data = response.data;
-      } else if (Array.isArray(response)) {
-        data = response;
-      }
-      setUsers(data);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    }
-  };
-
-  const handleAddNew = () => {
-    setEditingId(null);
-    setFormData({
-      userId: '',
-      carId: '',
-      testDate: '',
-      testLocation: '',
-      fee: '',
-    });
-    setShowForm(true);
-  };
-
-  const handleEdit = (drivertest) => {
-    setEditingId(drivertest.id);
-    // Convert API date string to input datetime-local format (YYYY-MM-DDThh:mm)
-    let formattedDate = '';
-    if (drivertest.testDate) {
-        const date = new Date(drivertest.testDate);
-        // Cần chỉnh múi giờ cho input local nếu cần, ở đây lấy ISO cắt chuỗi cho đơn giản
-        // Lưu ý: toISOString() trả về UTC. Nếu muốn hiển thị giờ địa phương cần xử lý thêm.
-        // Cách đơn giản để map vào input datetime-local:
-        date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-        formattedDate = date.toISOString().slice(0, 16);
-    }
-
-    setFormData({
-      userId: drivertest.userId || '',
-      carId: drivertest.carId || '',
-      testDate: formattedDate,
-      testLocation: drivertest.testLocation || '',
-      fee: drivertest.fee || 0,
-    });
-    setShowForm(true);
-  };
+  // Reset pagination when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
 
   const handleSave = async () => {
     try {
-      if (!formData.userId || !formData.carId || !formData.testDate || !formData.testLocation || !formData.fee) {
-        alert('Vui lòng điền đầy đủ thông tin bắt buộc');
-        return;
-      }
+        const payload = { 
+            ...formData, 
+            testDate: new Date(formData.testDate).toISOString(), 
+            fee: parseFloat(formData.fee) 
+        };
+        if (editingId) await drivertestApi.updateDrivertest(editingId, payload);
+        else await drivertestApi.createDrivertest(payload);
+        alert('Thành công');
+        setShowForm(false);
+        // Refresh data
+        const res = await drivertestApi.getAllDrivertests();
+        setDrivertests(res.data || []);
+    } catch (e) { alert('Lỗi: ' + e.message); }
+  };
 
-      // Backend dùng LocalDateTime, gửi ISO string là an toàn nhất
-      const payload = {
-        userId: formData.userId,
-        carId: formData.carId,
-        testDate: new Date(formData.testDate).toISOString(), 
-        testLocation: formData.testLocation,
-        fee: parseFloat(formData.fee)
-      };
-
-      if (editingId) {
-        await drivertestApi.updateDrivertest(editingId, payload);
-        alert('Cập nhật thành công');
-      } else {
-        await drivertestApi.createDrivertest(payload);
-        alert('Thêm mới thành công');
-      }
-
-      setShowForm(false);
-      fetchDrivertests();
-    } catch (err) {
-      console.error('Error saving:', err);
-      // Hiển thị message lỗi từ backend nếu có
-      const msg = err.message || 'Không thể lưu';
-      alert('Lỗi: ' + msg);
-    }
+  const handleStatusChange = async (id, status) => {
+    try {
+        await drivertestApi.updateDrivertestStatus(id, status);
+        // Optimistic update for better UX
+        setDrivertests(prev => prev.map(dt => dt.id === id ? { ...dt, status } : dt));
+    } catch(e) { alert('Lỗi cập nhật trạng thái'); }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa yêu cầu lái thử này?')) {
-      try {
-        await drivertestApi.deleteDrivertest(id);
-        alert('Xóa thành công');
-        fetchDrivertests();
-      } catch (err) {
-        console.error('Error deleting:', err);
-        alert('Lỗi khi xóa');
+    if(window.confirm('Xóa lịch này?')) {
+        try { 
+            await drivertestApi.deleteDrivertest(id); 
+            setDrivertests(prev => prev.filter(dt => dt.id !== id));
+        } catch(e) { alert('Lỗi xóa'); }
+    }
+  };
+
+  const openEdit = (dt) => {
+    setEditingId(dt.id);
+    let dateStr = '';
+    if(dt.testDate) {
+        const d = new Date(dt.testDate);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        dateStr = d.toISOString().slice(0,16);
+    }
+    setFormData({ userId: dt.userId, carId: dt.carId, testDate: dateStr, testLocation: dt.testLocation, fee: dt.fee });
+    setShowForm(true);
+  };
+
+  // --- STYLE BADGE COLORS ---
+  const getStatusColor = (s) => {
+      switch(s) {
+          case 'PENDING': return 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200';
+          case 'SCHEDULED': return 'bg-blue-100 text-blue-700 hover:bg-blue-200';
+          case 'COMPLETED': return 'bg-green-100 text-green-700 hover:bg-green-200';
+          case 'CANCELLED': return 'bg-red-100 text-red-700 hover:bg-red-200';
+          default: return 'bg-gray-100 text-gray-700';
       }
-    }
-  };
-
-  const handleViewDetail = (drivertest) => {
-    setSelectedDrivertest(drivertest);
-    setShowDetail(true);
-  };
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      await drivertestApi.updateDrivertestStatus(id, newStatus);
-      alert('Cập nhật trạng thái thành công');
-      fetchDrivertests();
-      
-      // Update modal nếu đang mở
-      if (selectedDrivertest?.id === id) {
-        setSelectedDrivertest(prev => ({ ...prev, status: newStatus }));
-      }
-    } catch (err) {
-      console.error('Error:', err);
-      alert('Lỗi khi cập nhật trạng thái');
-    }
-  };
-
-  // Helper colors
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
-      case 'SCHEDULED': return 'bg-blue-100 text-blue-800';
-      case 'COMPLETED': return 'bg-green-100 text-green-800';
-      case 'CANCELLED': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status) => {
-    const statusMap = {
-      PENDING: 'Chờ Xác Nhận',
-      SCHEDULED: 'Đã Lên Lịch',
-      COMPLETED: 'Hoàn Thành',
-      CANCELLED: 'Hủy',
-    };
-    return statusMap[status] || status;
-  };
-
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price || 0);
-  };
-
-  const formatDate = (dateString) => {
-      if(!dateString) return 'N/A';
-      return new Date(dateString).toLocaleString('vi-VN', {
-          year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit'
-      });
   }
+
+  // --- FILTER & PAGINATION LOGIC ---
+  const filtered = drivertests.filter(dt => {
+      if (statusFilter !== 'ALL' && dt.status !== statusFilter) return false;
+      const q = searchTerm.toLowerCase();
+      if (!q) return true;
+      return (dt.userName?.toLowerCase().includes(q) || dt.carName?.toLowerCase().includes(q));
+  });
+
+  const totalItems = filtered.length;
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Quản Lý Lái Thử</h1>
-        <button
-          onClick={handleAddNew}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm"
+        <button 
+            onClick={() => { setEditingId(null); setFormData({userId:'', carId:'', testDate:'', testLocation:'', fee:''}); setShowForm(true); }} 
+            className="bg-blue-600 text-white px-4 py-2 rounded flex gap-2 items-center hover:bg-blue-700 shadow-sm transition"
         >
-          <FaPlus /> Thêm Mới
+            <FaPlus /> Thêm Mới
         </button>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full whitespace-nowrap">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Khách Hàng</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Xe</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ngày Lái</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Địa Điểm</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Phí</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Trạng Thái</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Hành Động</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {drivertests.length > 0 ? (
-                  drivertests.map((dt) => (
-                    <tr key={dt.id} className="hover:bg-gray-50 transition duration-150">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">#{dt.id.substring(0, 8)}...</td>
-                      <td className="px-6 py-4 text-sm text-gray-700 font-medium">{dt.userName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{dt.carName || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{formatDate(dt.testDate)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-xs" title={dt.testLocation}>{dt.testLocation || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 font-medium">{formatPrice(dt.fee)}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(dt.status)}`}>
-                          {getStatusText(dt.status)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right">
-                        <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => handleViewDetail(dt)} className="text-blue-600 hover:text-blue-900 p-1 bg-blue-50 rounded" title="Chi tiết">
-                                <FaEye />
-                            </button>
-                            <button onClick={() => handleEdit(dt)} className="text-green-600 hover:text-green-900 p-1 bg-green-50 rounded" title="Sửa">
-                                <FaEdit />
-                            </button>
-                            <button onClick={() => handleDelete(dt.id)} className="text-red-600 hover:text-red-900 p-1 bg-red-50 rounded" title="Xóa">
-                                <FaTrash />
-                            </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="8" className="px-6 py-12 text-center text-gray-500 text-sm">
-                       Chưa có dữ liệu lịch lái thử
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Detail Modal */}
-      {showDetail && selectedDrivertest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fadeIn">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-gray-800">Chi Tiết Lái Thử</h2>
-              <button onClick={() => setShowDetail(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-light">&times;</button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-xs text-gray-500 uppercase mb-1">Khách Hàng</p>
-                  <p className="text-base font-semibold text-gray-800">{selectedDrivertest.userName}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-xs text-gray-500 uppercase mb-1">Xe Yêu Cầu</p>
-                  <p className="text-base font-semibold text-gray-800">{selectedDrivertest.carName}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-xs text-gray-500 uppercase mb-1">Thời Gian</p>
-                  <p className="text-base font-semibold text-gray-800">{formatDate(selectedDrivertest.testDate)}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-xs text-gray-500 uppercase mb-1">Phí Dịch Vụ</p>
-                  <p className="text-base font-semibold text-blue-600">{formatPrice(selectedDrivertest.fee)}</p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-xs text-gray-500 uppercase mb-1">Địa Điểm</p>
-                  <p className="text-base font-semibold text-gray-800">{selectedDrivertest.testLocation}</p>
-              </div>
-
-              {/* Status Update Section */}
-              <div className="border-t border-gray-100 pt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Cập nhật trạng thái</label>
-                <div className="flex gap-4 items-center">
-                    <select
-                        value={selectedDrivertest.status}
-                        onChange={(e) => handleStatusChange(selectedDrivertest.id, e.target.value)}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    >
-                        <option value="PENDING">Chờ Xác Nhận</option>
-                        <option value="SCHEDULED">Đã Lên Lịch</option>
-                        <option value="COMPLETED">Hoàn Thành</option>
-                        <option value="CANCELLED">Hủy</option>
-                    </select>
-                    <span className={`px-4 py-2 rounded-lg text-sm font-bold ${getStatusColor(selectedDrivertest.status)}`}>
-                        {getStatusText(selectedDrivertest.status)}
-                    </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={() => { handleEdit(selectedDrivertest); setShowDetail(false); }}
-                className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition shadow-sm"
-              >
-                Chỉnh Sửa
-              </button>
-              <button
-                onClick={() => setShowDetail(false)}
-                className="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition shadow-sm"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
+      <div className="bg-white rounded-lg shadow border overflow-hidden">
+        {/* Filter Bar */}
+        <div className="p-4 border-b flex gap-4 bg-gray-50">
+            <input 
+                type="text" 
+                placeholder="Tìm khách hàng, xe..." 
+                value={searchTerm} 
+                onChange={e=>setSearchTerm(e.target.value)} 
+                className="border p-2 rounded w-1/3 focus:ring-2 focus:ring-blue-500 outline-none bg-white" 
+            />
+            <select 
+                value={statusFilter} 
+                onChange={e=>setStatusFilter(e.target.value)} 
+                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ xác nhận</option>
+                <option value="SCHEDULED">Đã lên lịch</option>
+                <option value="COMPLETED">Hoàn thành</option>
+                <option value="CANCELLED">Hủy</option>
+            </select>
         </div>
-      )}
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+            <table className="w-full whitespace-nowrap">
+                <thead className="bg-gray-50 border-b">
+                    <tr>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Khách Hàng</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Xe</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Ngày Lái</th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Trạng Thái</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Hành Động</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y">
+                    {loading ? (
+                        <tr><td colSpan="5" className="text-center py-8 text-gray-500">Đang tải dữ liệu...</td></tr>
+                    ) : paginated.length > 0 ? (
+                        paginated.map(dt => (
+                            <tr key={dt.id} className="hover:bg-gray-50 transition">
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900">{dt.userName}</td>
+                                <td className="px-6 py-4 text-sm text-gray-700">{dt.carName}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{new Date(dt.testDate).toLocaleString('vi-VN')}</td>
+                                
+                                {/* Badge Status Select */}
+                                <td className="px-6 py-4 text-sm text-center">
+                                    <div className="relative inline-block w-full max-w-[140px]">
+                                        <select 
+                                            value={dt.status} 
+                                            onChange={(e)=>handleStatusChange(dt.id, e.target.value)}
+                                            className={`appearance-none w-full cursor-pointer text-xs font-bold py-1.5 px-3 rounded-full border-0 focus:ring-2 focus:ring-offset-1 focus:ring-blue-300 transition-colors duration-200 text-center ${getStatusColor(dt.status)}`}
+                                            style={{ textAlignLast: 'center' }}
+                                        >
+                                            <option value="PENDING" className="bg-white text-gray-800">Chờ Xác Nhận</option>
+                                            <option value="SCHEDULED" className="bg-white text-gray-800">Đã Lên Lịch</option>
+                                            <option value="COMPLETED" className="bg-white text-gray-800">Hoàn Thành</option>
+                                            <option value="CANCELLED" className="bg-white text-gray-800">Hủy</option>
+                                        </select>
+                                    </div>
+                                </td>
+
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button onClick={()=>openEdit(dt)} className="text-blue-600 hover:bg-blue-50 p-2 rounded transition" title="Sửa"><FaEdit /></button>
+                                        <button onClick={()=>handleDelete(dt.id)} className="text-red-600 hover:bg-red-50 p-2 rounded transition" title="Xóa"><FaTrash /></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr><td colSpan="5" className="text-center py-8 text-gray-500">Không có dữ liệu</td></tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <Pagination currentPage={currentPage} totalItems={totalItems} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setCurrentPage} />
+      </div>
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-gray-800">
-                {editingId ? 'Chỉnh Sửa Thông Tin' : 'Thêm Mới Lịch Lái Thử'}
-              </h2>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
+                <h2 className="text-xl font-bold mb-4 text-gray-800">{editingId ? 'Sửa Lịch Lái Thử' : 'Thêm Lịch Mới'}</h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Khách hàng</label>
+                        <select value={formData.userId} onChange={e=>setFormData({...formData, userId:e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="">-- Chọn --</option>
+                            {users.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                        </select>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Xe</label>
+                        <select value={formData.carId} onChange={e=>setFormData({...formData, carId:e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="">-- Chọn --</option>
+                            {cars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Ngày giờ</label>
+                        <input type="datetime-local" value={formData.testDate} onChange={e=>setFormData({...formData, testDate:e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Phí (VND)</label>
+                        <input type="number" placeholder="0" value={formData.fee} onChange={e=>setFormData({...formData, fee:e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Địa điểm</label>
+                        <input type="text" placeholder="VD: Showroom A" value={formData.testLocation} onChange={e=>setFormData({...formData, testLocation:e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6 border-t pt-4">
+                    <button onClick={()=>setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 transition font-medium">Hủy</button>
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-medium">Lưu</button>
+                </div>
             </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Khách Hàng <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.userId}
-                  onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                >
-                  <option value="">-- Chọn khách hàng --</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>{user.fullName} ({user.email})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Xe <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.carId}
-                  onChange={(e) => setFormData({ ...formData, carId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                >
-                  <option value="">-- Chọn xe --</option>
-                  {cars.map((car) => (
-                    <option key={car.id} value={car.id}>{car.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày giờ <span className="text-red-500">*</span></label>
-                <input
-                  type="datetime-local"
-                  value={formData.testDate}
-                  onChange={(e) => setFormData({ ...formData, testDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Địa điểm <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.testLocation}
-                  onChange={(e) => setFormData({ ...formData, testLocation: e.target.value })}
-                  placeholder="VD: Showroom Mercedes Hà Nội"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phí (VND) <span className="text-red-500">*</span></label>
-                <input
-                  type="number"
-                  value={formData.fee}
-                  onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
-                  min="0"
-                  step="1000"
-                  placeholder="0"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={handleSave}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition"
-              >
-                Lưu Thông Tin
-              </button>
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-6 py-2.5 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg font-medium shadow-sm transition"
-              >
-                Hủy
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
   );
+};
+
+// Reusable Pagination Component
+const Pagination = ({ currentPage, totalItems, itemsPerPage, onPageChange }) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    if (totalPages <= 1) return null;
+
+    const renderPageNumbers = () => {
+        const pageNumbers = [];
+        const maxVisibleButtons = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisibleButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisibleButtons - 1);
+
+        if (endPage - startPage + 1 < maxVisibleButtons) {
+            startPage = Math.max(1, endPage - maxVisibleButtons + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(
+                <button key={i} onClick={() => onPageChange(i)} className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm font-medium transition ${currentPage === i ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{i}</button>
+            );
+        }
+        return pageNumbers;
+    };
+
+    return (
+        <div className="px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 bg-gray-50 gap-4">
+            <div className="text-sm text-gray-500">Hiển thị <span className="font-medium">{Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}</span> đến <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span> của <span className="font-medium">{totalItems}</span></div>
+            <div className="flex items-center gap-2">
+                <button onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"><FaChevronLeft size={12} /></button>
+                {renderPageNumbers()}
+                <button onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"><FaChevronRight size={12} /></button>
+            </div>
+        </div>
+    );
 };
 
 export default AdminDrivertest;
