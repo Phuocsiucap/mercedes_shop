@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash, FaPlus, FaEye } from 'react-icons/fa';
 // Thêm import hàm tiện ích
 import { uploadImagesToCloudinary } from '../../utils/cloudinary';
+import { searchCars } from '../../api/carApi';
 
 
 const AdminCars = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [cars, setCars] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]); // State mới để giữ file từ máy tính
+  
   
   const [formData, setFormData] = useState({
     name: '',
@@ -35,28 +38,58 @@ const AdminCars = () => {
   totalElements: 0
   });
 
+  const [filters, setFilters] = useState({
+    keyword: searchParams.get('keyword') || '',
+    categoryId: searchParams.get('categoryId') || '',
+    minPrice: searchParams.get('minPrice') || '',
+    maxPrice: searchParams.get('maxPrice') || '',
+    year: searchParams.get('year') || '',
+    color: searchParams.get('color') || '',
+    sortBy: searchParams.get('sortBy') || 'id',
+    sortDir: searchParams.get('sortDir') || 'DESC',
+  });
+
+  const [showFilters, setShowFilters] = useState(false);
+
+
   useEffect(() => {
   fetchCars();
-}, [pagination.currentPage, pagination.size]); // Chạy lại mỗi khi trang hoặc size thay đổi
+}, [pagination.currentPage, pagination.size,filters.keyword,
+  filters.categoryId,
+  filters.minPrice,
+  filters.maxPrice,
+  filters.year,
+  filters.color,
+  filters.sortBy,
+  filters.sortDir]); // Chạy lại mỗi khi trang hoặc size thay đổi
 
 useEffect(() => {
   fetchCategories();
 }, []);
 
   const navigate = useNavigate();
+
   const fetchCars = async () => {
   try {
     setLoading(true);
     // Truyền params page và size vào API
-    const response = await axios.get('/cars', {
-      params: {
-        page: pagination.currentPage,
-        size: pagination.size
-      }
-    });
+    const params = {
+      page: pagination.currentPage,
+      size: pagination.size,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+      ...(filters.keyword && { keyword: filters.keyword }),
+      ...(filters.categoryId && { categoryId: filters.categoryId }),
+      ...(filters.minPrice && { minPrice: filters.minPrice }),
+      ...(filters.maxPrice && { maxPrice: filters.maxPrice }),
+      ...(filters.year && { year: filters.year }),
+      ...(filters.color && { color: filters.color }),
+    };
+
+    const response = await searchCars(params);
 
     // Giả sử Backend trả về theo cấu trúc chuẩn Spring Boot: response.data.data.content
-    const result = response.data?.data;
+    const result = response.data?.data|| response.data;
 
     if (result && result.content) {
       setCars(result.content);
@@ -79,6 +112,42 @@ useEffect(() => {
     setLoading(false);
   }
 };
+
+const handleFilterChange = (name, value) => {
+    setFilters((prev) => ({ ...prev, [name]: value }));
+    setPagination((prev) => ({ ...prev, currentPage: 0 }));
+
+    // Update URL params
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set(name, value);
+    } else {
+      newParams.delete(name);
+    }
+    setSearchParams(newParams);
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPagination((prev) => ({ ...prev, currentPage: 0 }));
+    fetchCars();
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      keyword: '',
+      categoryId: '',
+      minPrice: '',
+      maxPrice: '',
+      year: '',
+      color: '',
+      sortBy: 'id',
+      sortDir: 'DESC',
+    });
+    
+    setSearchParams({});
+    setPagination((prev) => ({ ...prev, currentPage: 0 }));
+  };
 
   const fetchCategories = async () => {
     try {
@@ -399,8 +468,152 @@ useEffect(() => {
         </div>
       )}
 
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Filters Sidebar */}
+          <div className="lg:w-1/4">
+            <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">Bộ lọc</h2>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="lg:hidden text-blue-600"
+                >
+                  {showFilters ? 'Ẩn' : 'Hiện'}
+                </button>
+              </div>
+
+              <div className={`space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+                {/* Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tìm kiếm
+                  </label>
+                  <input
+                    type="text"
+                    value={filters.keyword}
+                    onChange={(e) => handleFilterChange('keyword', e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch(e)}
+                    placeholder="Tên xe..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Danh mục
+                  </label>
+                  <select
+                    value={filters.categoryId}
+                    onChange={(e) => handleFilterChange('categoryId', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Tất cả</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Price Range */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Khoảng giá (VNĐ)
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="number"
+                      value={filters.minPrice}
+                      onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                      placeholder="Từ"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="number"
+                      value={filters.maxPrice}
+                      onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                      placeholder="Đến"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Year */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Năm sản xuất
+                  </label>
+                  <input
+                    type="number"
+                    value={filters.year}
+                    onChange={(e) => handleFilterChange('year', e.target.value)}
+                    placeholder="2024"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Color */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Màu sắc
+                  </label>
+                  <input
+                    type="text"
+                    value={filters.color}
+                    onChange={(e) => handleFilterChange('color', e.target.value)}
+                    placeholder="Đen, Trắng..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sắp xếp theo
+                  </label>
+                  <select
+                    value={filters.sortBy}
+                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="id">Mới nhất</option>
+                    <option value="price">Giá</option>
+                    <option value="name">Tên</option>
+                    <option value="manufactureYear">Năm sản xuất</option>
+                  </select>
+                </div>
+
+                {/* Sort Direction */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Thứ tự
+                  </label>
+                  <select
+                    value={filters.sortDir}
+                    onChange={(e) => handleFilterChange('sortDir', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="DESC">Giảm dần</option>
+                    <option value="ASC">Tăng dần</option>
+                  </select>
+                </div>
+
+                {/* Clear Filters */}
+                <button
+                  onClick={clearFilters}
+                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition"
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
+            </div>
+          </div>
+
+      
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className=" lg:w-3/4 flex-1 bg-white rounded-lg shadow-lg overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
@@ -539,7 +752,9 @@ useEffect(() => {
         )}
       </div>
     </div>
+    </div>
   );
 };
 
 export default AdminCars;
+

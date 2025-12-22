@@ -13,12 +13,12 @@ const CarsPage = () => {
     currentPage: 0,
     totalPages: 0,
     totalElements: 0,
-    size: 12,
+    size: 6,
   });
 
   const [filters, setFilters] = useState({
     keyword: searchParams.get('keyword') || '',
-    categoryId: searchParams.get('category') || '',
+    categoryId: searchParams.get('categoryId') || '',
     minPrice: searchParams.get('minPrice') || '',
     maxPrice: searchParams.get('maxPrice') || '',
     year: searchParams.get('year') || '',
