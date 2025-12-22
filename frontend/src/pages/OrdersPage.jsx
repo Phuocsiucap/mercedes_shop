@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserOrders } from '../api/orderApi';
+import userService from '../services/userService';
+import { useApp } from '../context/AppContext';
 
 const OrdersPage = () => {
+  const { formatCurrency } = useApp();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,7 +16,7 @@ const OrdersPage = () => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await getUserOrders();
+      const response = await userService.getOrders();
       setOrders(response.data || []);
       setError(null);
     } catch (err) {
@@ -26,10 +28,7 @@ const OrdersPage = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   const getStatusColor = (status) => {
@@ -131,17 +130,19 @@ const OrdersPage = () => {
                     {order.orderDetails && order.orderDetails.map((detail) => (
                       <div key={detail.id} className="flex items-center gap-4 pb-4 border-b last:border-b-0">
                         <div className="flex-shrink-0">
-                          {detail.carImage ? (
-                            <img
-                              src={detail.carImage}
-                              alt={detail.carName}
-                              className="w-20 h-20 object-cover rounded-lg"
-                            />
-                          ) : (
-                            <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
-                              <span className="text-3xl">🚗</span>
-                            </div>
-                          )}
+                          <img
+                            src={detail.carImage || '/placeholder-car.jpg'}
+                            alt={detail.carName}
+                            className="w-20 h-20 object-cover rounded-lg"
+                            onError={(e) => {
+                              e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                                <svg width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+                                  <rect width="100%" height="100%" fill="#f3f4f6"/>
+                                  <text x="50%" y="50%" font-family="Arial" font-size="20" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                                </svg>
+                              `);
+                            }}
+                          />
                         </div>
                         <div className="flex-1">
                           <h4 className="font-semibold text-gray-800">{detail.carName}</h4>

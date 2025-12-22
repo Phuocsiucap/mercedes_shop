@@ -1,130 +1,223 @@
 package org.example.service;
 
-import org.example.dto.request.ChangePasswordRequest;
 import org.example.dto.request.UpdateProfileRequest;
+import org.example.dto.request.FavoriteRequest;
+import org.example.dto.response.ApiResponse;
+import org.example.dto.response.OrderResponse;
+import org.example.dto.response.FavoriteResponse;
 import org.example.entity.User;
+import org.example.entity.Car;
+import org.example.entity.Order;
+import org.example.entity.OrderDetail;
+import org.example.entity.Favorite;
+import org.example.exception.BadRequestException;
+import org.example.exception.ResourceNotFoundException;
 import org.example.repository.UserRepository;
+import org.example.repository.CarRepository;
+import org.example.repository.OrderRepository;
+import org.example.repository.OrderDetailRepository;
+import org.example.repository.FavoriteRepository;
+import org.example.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class UserService {
 
     @Autowired
     private UserRepository userRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private CarRepository carRepository;
 
     @Autowired
-    private MongoTemplate mongoTemplate;
+    private OrderRepository orderRepository;
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
+
+    @Autowired
+    private FavoriteRepository favoriteRepository;
+
+    @Autowired
+    private OrderMapper orderMapper;
+
+    public User getUserProfile(String userId) {
+        return userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
     }
 
-    public User getUserById(String id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+    public ApiResponse<User> updateProfile(String userId, @Valid UpdateProfileRequest updateRequest) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        // Update user fields if provided
+        if (updateRequest.getFullName() != null && !updateRequest.getFullName().trim().isEmpty()) {
+            user.setFullName(updateRequest.getFullName().trim());
+        }
+
+        if (updateRequest.getPhoneNumber() != null && !updateRequest.getPhoneNumber().trim().isEmpty()) {
+            // Check if phone number is already taken by another user
+            if (userRepository.existsByPhoneNumber(updateRequest.getPhoneNumber()) && 
+                !updateRequest.getPhoneNumber().equals(user.getPhoneNumber())) {
+                throw new BadRequestException("Số điện thoại đã được sử dụng bởi người dùng khác");
+            }
+            user.setPhoneNumber(updateRequest.getPhoneNumber().trim());
+        }
+
+        if (updateRequest.getAddress() != null && !updateRequest.getAddress().trim().isEmpty()) {
+            user.setAddress(updateRequest.getAddress().trim());
+        }
+
+        User updatedUser = userRepository.save(user);
+
+        return ApiResponse.<User>builder()
+            .success(true)
+            .message("Cập nhật thông tin thành công")
+            .data(updatedUser)
+            .timestamp(LocalDateTime.now())
+            .build();
     }
 
-    public User updateUserProfile(String id, UpdateProfileRequest request) {
-        User user = getUserById(id);
+    public List<OrderResponse> getUserOrders(String userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        List<Order> orders = orderRepository.findByUser(user);
         
-        if (request.getFullName() != null) {
-            user.setFullName(request.getFullName());
-        }
-        if (request.getPhoneNumber() != null) {
-            user.setPhoneNumber(request.getPhoneNumber());
-        }
-        if (request.getAddress() != null) {
-            user.setAddress(request.getAddress());
-        }
-        
-        return userRepository.save(user);
+        return orders.stream()
+            .map(order -> {
+                // Fetch order details for each order
+                List<OrderDetail> orderDetails = orderDetailRepository.findByOrder(order);
+                
+                // Map order to response
+                OrderResponse orderResponse = orderMapper.toOrderResponse(order);
+                
+                // Map order details
+                List<OrderResponse.OrderDetailResponse> orderDetailResponses = orderDetails.stream()
+                    .map(orderMapper::toOrderDetailResponse)
+                    .collect(Collectors.toList());
+                
+                orderResponse.setOrderDetails(orderDetailResponses);
+                
+                return orderResponse;
+            })
+            .collect(Collectors.toList());
     }
 
-    public void changePassword(String id, ChangePasswordRequest request) {
-        User user = getUserById(id);
-        
-        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new RuntimeException("Mật khẩu cũ không chính xác");
+    public OrderResponse getUserOrder(String userId, String orderId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        // Verify that the order belongs to the user
+        if (!order.getUser().getId().equals(userId)) {
+            throw new BadRequestException("Bạn không có quyền xem đơn hàng này");
         }
+
+        // Fetch order details
+        List<OrderDetail> orderDetails = orderDetailRepository.findByOrder(order);
         
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
+        // Map order to response
+        OrderResponse orderResponse = orderMapper.toOrderResponse(order);
+        
+        // Map order details
+        List<OrderResponse.OrderDetailResponse> orderDetailResponses = orderDetails.stream()
+            .map(orderMapper::toOrderDetailResponse)
+            .collect(Collectors.toList());
+        
+        orderResponse.setOrderDetails(orderDetailResponses);
+        
+        return orderResponse;
     }
 
-    public User updateUserRole(String id, User.Role role) {
-        User user = getUserById(id);
-        user.setRole(role);
-        return userRepository.save(user);
+    public List<FavoriteResponse> getUserFavorites(String userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        List<Favorite> favorites = favoriteRepository.findByUser(user);
+        
+        return favorites.stream()
+            .map(this::toFavoriteResponse)
+            .collect(Collectors.toList());
     }
 
-    public void deleteUser(String id) {
-        if (!userRepository.existsById(id)) {
-            throw new RuntimeException("Người dùng không tồn tại");
+    public ApiResponse<FavoriteResponse> addToFavorites(String userId, @Valid FavoriteRequest favoriteRequest) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Car car = carRepository.findById(favoriteRequest.getCarId())
+            .orElseThrow(() -> new ResourceNotFoundException("Car not found with id: " + favoriteRequest.getCarId()));
+
+        // Check if already in favorites
+        if (favoriteRepository.existsByUserAndCar(user, car)) {
+            throw new BadRequestException("Xe này đã có trong danh sách yêu thích");
         }
-        userRepository.deleteById(id);
+
+        Favorite favorite = new Favorite();
+        favorite.setUser(user);
+        favorite.setCar(car);
+        favorite.setAddedAt(LocalDateTime.now());
+
+        Favorite savedFavorite = favoriteRepository.save(favorite);
+
+        return ApiResponse.<FavoriteResponse>builder()
+            .success(true)
+            .message("Đã thêm vào danh sách yêu thích")
+            .data(toFavoriteResponse(savedFavorite))
+            .timestamp(LocalDateTime.now())
+            .build();
     }
 
-    public Page<User> getFilteredUsers(String keyword, String role, String fromDate, String toDate, Pageable pageable) {
-        List<Criteria> criteriaList = new ArrayList<>();
-        
-        // Keyword search (fullName, email, phoneNumber)
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            Criteria keywordCriteria = new Criteria().orOperator(
-                Criteria.where("fullName").regex(keyword, "i"),
-                Criteria.where("email").regex(keyword, "i"),
-                Criteria.where("phoneNumber").regex(keyword, "i")
-            );
-            criteriaList.add(keywordCriteria);
-        }
-        
-        // Role filter
-        if (role != null && !role.trim().isEmpty()) {
-            User.Role userRole = User.Role.valueOf(role);
-            criteriaList.add(Criteria.where("role").is(userRole));
-        }
-        
-        // Date range filter
-        if (fromDate != null && !fromDate.trim().isEmpty()) {
-            LocalDate from = LocalDate.parse(fromDate, DateTimeFormatter.ISO_LOCAL_DATE);
-            criteriaList.add(Criteria.where("createdAt").gte(from));
-        }
-        
-        if (toDate != null && !toDate.trim().isEmpty()) {
-            LocalDate to = LocalDate.parse(toDate, DateTimeFormatter.ISO_LOCAL_DATE);
-            criteriaList.add(Criteria.where("createdAt").lte(to));
-        }
-        
-        // Build final query
-        Query query = new Query();
-        if (!criteriaList.isEmpty()) {
-            query.addCriteria(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
-        }
-        
-        // Add pagination and sorting
-        query.with(pageable);
-        
-        // Execute query
-        List<User> users = mongoTemplate.find(query, User.class);
-        long total = mongoTemplate.count(query.skip(0).limit(0), User.class);
-        
-        return new PageImpl<>(users, pageable, total);
+    public ApiResponse<String> removeFromFavorites(String userId, String carId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Car car = carRepository.findById(carId)
+            .orElseThrow(() -> new ResourceNotFoundException("Car not found with id: " + carId));
+
+        Favorite favorite = favoriteRepository.findByUserAndCar(user, car)
+            .orElseThrow(() -> new ResourceNotFoundException("Xe này không có trong danh sách yêu thích"));
+
+        favoriteRepository.delete(favorite);
+
+        return ApiResponse.<String>builder()
+            .success(true)
+            .message("Đã xóa khỏi danh sách yêu thích")
+            .data("Removed from favorites")
+            .timestamp(LocalDateTime.now())
+            .build();
+    }
+
+    public boolean isCarInFavorites(String userId, String carId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Car car = carRepository.findById(carId)
+            .orElseThrow(() -> new ResourceNotFoundException("Car not found with id: " + carId));
+
+        return favoriteRepository.existsByUserAndCar(user, car);
+    }
+
+    private FavoriteResponse toFavoriteResponse(Favorite favorite) {
+        FavoriteResponse response = new FavoriteResponse();
+        response.setId(favorite.getId());
+        response.setCarId(favorite.getCar().getId());
+        response.setCarName(favorite.getCar().getName());
+        response.setCarPrice(favorite.getCar().getPrice());
+        List<String> images = favorite.getCar().getImages();
+        response.setCarImage(images != null && !images.isEmpty() ? images.get(0) : null);
+        response.setAddedAt(favorite.getAddedAt());
+        return response;
     }
 }

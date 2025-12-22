@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCarById } from '../api/carApi';
-import axios from '../api/axios';
+import carService from '../services/carService';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 
 const CarDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { isAuthenticated } = useAuth();
+  const { formatCurrency } = useApp();
   const [car, setCar] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,7 @@ const CarDetailPage = () => {
   const fetchCarDetail = async () => {
     try {
       setLoading(true);
-      const response = await getCarById(id);
+      const response = await carService.getCarById(id);
       setCar(response.data);
       setError(null);
     } catch (err) {
@@ -41,8 +42,8 @@ const CarDetailPage = () => {
 
   const fetchReviews = async () => {
     try {
-      const response = await axios.get(`/reviews/car/${id}`);
-      setReviews(response.data.data || []);
+      const response = await carService.getCarReviews(id);
+      setReviews(response.data || []);
     } catch (err) {
       console.error('Error fetching reviews:', err);
     }
@@ -54,7 +55,7 @@ const CarDetailPage = () => {
       id: car.id,
       name: car.name,
       price: car.price,
-      image: car.image,
+      image: car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg',
       color: car.color,
       quantity: quantity,
     });
@@ -82,25 +83,25 @@ const CarDetailPage = () => {
       return;
     }
     try {
-      await axios.post('/reviews', {
-        carId: id,
-        content: reviewData.content,
+      const response = await carService.addReview(id, {
         rating: reviewData.rating,
+        comment: reviewData.content,
       });
-      setReviewData({ content: '', rating: 5 });
-      setShowReviewForm(false);
-      fetchReviews();
-      alert('Đánh giá thành công!');
+      
+      if (response.success) {
+        setReviewData({ content: '', rating: 5 });
+        setShowReviewForm(false);
+        fetchReviews();
+        alert('Đánh giá thành công!');
+      }
     } catch (err) {
+      console.error('Error submitting review:', err);
       alert('Có lỗi xảy ra khi đánh giá');
     }
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   if (loading) {
@@ -146,17 +147,19 @@ const CarDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
             {/* Image */}
             <div className="relative">
-              {car.image ? (
-                <img
-                  src={car.image}
-                  alt={car.name}
-                  className="w-full h-[500px] object-cover object-center rounded-lg shadow-lg"
-                />
-              ) : (
-                <div className="w-full h-[500px] bg-gray-200 rounded-lg flex items-center justify-center">
-                  <span className="text-9xl">🚗</span>
-                </div>
-              )}
+              <img
+                src={car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg'}
+                alt={car.name}
+                className="w-full h-[500px] object-cover object-center rounded-lg shadow-lg"
+                onError={(e) => {
+                  e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                    <svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="100%" height="100%" fill="#f3f4f6"/>
+                      <text x="50%" y="50%" font-family="Arial" font-size="48" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                    </svg>
+                  `);
+                }}
+              />
               <button
                 onClick={handleToggleFavorite}
                 className={`absolute top-4 right-4 p-3 rounded-full ${
@@ -270,7 +273,7 @@ const CarDetailPage = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-4">
+              <div className="flex gap-4 mb-4">
                 <button
                   onClick={handleBuyNow}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
@@ -284,6 +287,14 @@ const CarDetailPage = () => {
                   Thêm vào giỏ
                 </button>
               </div>
+
+              {/* Test Drive Button */}
+              <button
+                onClick={() => navigate(`/test-drive?carId=${car.id}&carName=${encodeURIComponent(car.name)}`)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2"
+              >
+                🚗 Đăng Ký Lái Thử
+              </button>
             </div>
           </div>
 

@@ -1,80 +1,104 @@
 import { useState, useEffect } from 'react';
-import axios from '../../api/axios';
-import { FaEye, FaEdit, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
-import AdminFilter from '../../components/AdminFilter';
-import AdminPagination from '../../components/AdminPagination';
-import { useAdminFilter } from '../../hooks/useAdminFilter';
-import { exportToExcel, exportConfigs } from '../../utils/exportUtils';
+import { FaEye, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
+import adminService from '../../services/adminService';
+import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 
 const AdminOrders = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [showDetail, setShowDetail] = useState(false);
-  const [pagination, setPagination] = useState({
+  const { formatCurrency, formatDate, addNotification } = useApp();
+  
+  const [orders, setOrders] = useState({
+    content: [],
     totalElements: 0,
     totalPages: 0,
-    currentPage: 0,
-    size: 10
+    number: 0,
+    size: 10,
+    loading: false,
+    error: null
   });
-
-  // Filter hook
-  const {
-    filters,
-    searchTerm,
-    sortBy,
-    sortDir,
-    page,
-    size,
-    handleFilterChange,
-    handleSearch,
-    handleSort,
-    handlePageChange,
-    handleSizeChange,
-    queryParams
-  } = useAdminFilter();
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showDetail, setShowDetail] = useState(false);
+  const [filters, setFilters] = useState({});
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [sortBy, setSortBy] = useState('orderDate');
+  const [sortDir, setSortDir] = useState('DESC');
 
   useEffect(() => {
     fetchOrders();
-  }, [queryParams]);
+  }, [filters, page, size, sortBy, sortDir]);
 
   const fetchOrders = async () => {
     try {
-      setLoading(true);
-      const params = new URLSearchParams(queryParams);
-      const response = await axios.get(`/admin/orders?${params.toString()}`);
-      
-      if (response.data?.data?.content) {
-        setOrders(response.data.data.content);
-        setPagination({
-          totalElements: response.data.data.totalElements,
-          totalPages: response.data.data.totalPages,
-          currentPage: response.data.data.number,
-          size: response.data.data.size
-        });
-      } else {
-        setOrders([]);
-        setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
-      }
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-      setOrders([]);
-      setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
-    } finally {
-      setLoading(false);
+      setOrders(prev => ({ ...prev, loading: true, error: null }));
+      const params = { ...filters, page, size, sortBy, sortDir };
+      const response = await adminService.getAllOrders(params);
+      setOrders(prev => ({
+        ...prev,
+        loading: false,
+        content: response.data?.content || [],
+        totalElements: response.data?.totalElements || 0,
+        totalPages: response.data?.totalPages || 0,
+        number: response.data?.number || 0,
+        size: response.data?.size || 10
+      }));
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      setOrders(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Failed to load orders'
+      }));
     }
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      await axios.patch(`/orders/${orderId}/status`, null, { params: { status: newStatus } });
-      alert('Cập nhật trạng thái thành công');
-      fetchOrders();
+      await adminService.updateOrderStatus(orderId, newStatus);
+      addNotification({
+        type: 'success',
+        title: 'Thành công',
+        message: 'Cập nhật trạng thái thành công'
+      });
       setShowDetail(false);
+      fetchOrders();
     } catch (err) {
       console.error('Error:', err);
-      alert('Có lỗi xảy ra');
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: err.message || 'Có lỗi xảy ra'
+      });
     }
+  };
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
+
+  const handleSearch = (searchTerm) => {
+    setFilters({ ...filters, keyword: searchTerm });
+    setPage(0);
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortDir(sortDir === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(field);
+      setSortDir('ASC');
+    }
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  const handleSizeChange = (newSize) => {
+    setSize(newSize);
+    setPage(0);
   };
 
   const handleViewDetail = (order) => {
@@ -83,10 +107,7 @@ const AdminOrders = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   const getStatusColor = (status) => {
@@ -119,60 +140,37 @@ const AdminOrders = () => {
     return sortDir === 'ASC' ? <FaSortUp /> : <FaSortDown />;
   };
 
-  // Filter configuration
-  const filterConfig = [
-    {
-      key: 'status',
-      label: 'Trạng thái',
-      type: 'select',
-      options: [
-        { value: 'PENDING', label: 'Chờ Xác Nhận' },
-        { value: 'DELIVERING', label: 'Đang Giao' },
-        { value: 'COMPLETED', label: 'Hoàn Thành' },
-        { value: 'CANCELLED', label: 'Hủy' }
-      ]
-    },
-    {
-      key: 'totalAmount',
-      label: 'Tổng tiền (VND)',
-      type: 'range'
-    },
-    {
-      key: 'paymentMethod',
-      label: 'Phương thức thanh toán',
-      type: 'select',
-      options: [
-        { value: 'COD', label: 'Thanh toán khi nhận hàng' },
-        { value: 'BANK_TRANSFER', label: 'Chuyển khoản' },
-        { value: 'CREDIT_CARD', label: 'Thẻ tín dụng' }
-      ]
-    }
-  ];
-
-  const handleExport = () => {
-    exportToExcel(orders, exportConfigs.orders.filename, exportConfigs.orders.headers);
-  };
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800 mb-4">Quản Lý Đơn Hàng</h1>
       </div>
 
-      {/* Filter Component */}
-      <AdminFilter
-        filters={filterConfig}
-        onFilterChange={handleFilterChange}
-        onSearch={handleSearch}
-        searchPlaceholder="Tìm kiếm theo tên khách hàng, email, địa chỉ..."
-        showDateRange={true}
-        showExport={true}
-        onExport={handleExport}
-      />
+      {/* Filter Component - Simplified */}
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="flex gap-4 items-center">
+          <input
+            type="text"
+            placeholder="Tìm kiếm đơn hàng..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+          <select
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handleFilterChange({ status: e.target.value })}
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="PENDING">Chờ Xác Nhận</option>
+            <option value="DELIVERING">Đang Giao</option>
+            <option value="COMPLETED">Hoàn Thành</option>
+            <option value="CANCELLED">Hủy</option>
+          </select>
+        </div>
+      </div>
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {loading ? (
+        {orders?.loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
           </div>
@@ -225,13 +223,22 @@ const AdminOrders = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {orders.map((order) => (
+                {/* Backend trả về Page<AdminOrderResponse> với structure:
+                    {
+                      content: [...],
+                      totalElements: number,
+                      totalPages: number,
+                      number: number (current page),
+                      size: number
+                    }
+                */}
+                {(orders?.content || []).map((order) => (
                   <tr key={order.id} className="hover:bg-blue-50 transition">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       #{order.id}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(order.orderDate).toLocaleDateString('vi-VN')}
+                      {formatDate(order.orderDate)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {order.userName || 'N/A'}
@@ -268,7 +275,7 @@ const AdminOrders = () => {
                 ))}
               </tbody>
             </table>
-            {orders.length === 0 && (
+            {(orders?.content || []).length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-lg">Không có đơn hàng nào</p>
               </div>
@@ -297,7 +304,7 @@ const AdminOrders = () => {
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="text-gray-600 text-sm">Ngày Đặt</p>
                   <p className="font-semibold text-gray-900">
-                    {new Date(selectedOrder.orderDate).toLocaleDateString('vi-VN')}
+                    {formatDate(selectedOrder.orderDate)}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -377,15 +384,35 @@ const AdminOrders = () => {
         </div>
       )}
 
-      {/* Pagination */}
-      <AdminPagination
-        currentPage={pagination.currentPage}
-        totalPages={pagination.totalPages}
-        totalElements={pagination.totalElements}
-        size={pagination.size}
-        onPageChange={handlePageChange}
-        onSizeChange={handleSizeChange}
-      />
+      {/* Pagination - Simplified */}
+      {orders.totalPages > 1 && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">
+              Hiển thị {orders.content.length} / {orders.totalElements} kết quả
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <span className="px-3 py-1 bg-blue-600 text-white rounded">
+                {page + 1} / {orders.totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(Math.min(orders.totalPages - 1, page + 1))}
+                disabled={page >= orders.totalPages - 1}
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

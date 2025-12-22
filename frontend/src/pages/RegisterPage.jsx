@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import AuthLayout from '../components/AuthLayout';
+import AuthLayout from '../components/layouts/AuthLayout';
 import useOAuth from '../hooks/useOAuth';
 import registerCarImage from '../assets/images/register-car.png';
 

@@ -1,69 +1,85 @@
 import { useState, useEffect } from 'react';
-import axios from '../../api/axios';
 import { FaEdit, FaTrash, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
-import AdminFilter from '../../components/AdminFilter';
-import AdminPagination from '../../components/AdminPagination';
-import { useAdminFilter } from '../../hooks/useAdminFilter';
-import { exportToExcel, exportConfigs } from '../../utils/exportUtils';
+import adminService from '../../services/adminService';
+import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 
 const AdminUsers = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { formatDate, addNotification } = useApp();
+  
+  const [users, setUsers] = useState({
+    content: [],
+    totalElements: 0,
+    totalPages: 0,
+    number: 0,
+    size: 10,
+    loading: false,
+    error: null
+  });
   const [selectedUser, setSelectedUser] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [newRole, setNewRole] = useState('');
-  const [pagination, setPagination] = useState({
-    totalElements: 0,
-    totalPages: 0,
-    currentPage: 0,
-    size: 10
-  });
-
-  // Filter hook
-  const {
-    filters,
-    searchTerm,
-    sortBy,
-    sortDir,
-    page,
-    size,
-    handleFilterChange,
-    handleSearch,
-    handleSort,
-    handlePageChange,
-    handleSizeChange,
-    queryParams
-  } = useAdminFilter();
+  const [filters, setFilters] = useState({});
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortDir, setSortDir] = useState('DESC');
 
   useEffect(() => {
     fetchUsers();
-  }, [queryParams]);
+  }, [filters, page, size, sortBy, sortDir]);
 
   const fetchUsers = async () => {
     try {
-      setLoading(true);
-      const params = new URLSearchParams(queryParams);
-      const response = await axios.get(`/admin/users?${params.toString()}`);
-      
-      if (response.data?.data?.content) {
-        setUsers(response.data.data.content);
-        setPagination({
-          totalElements: response.data.data.totalElements,
-          totalPages: response.data.data.totalPages,
-          currentPage: response.data.data.number,
-          size: response.data.data.size
-        });
-      } else {
-        setUsers([]);
-        setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
-      }
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setUsers([]);
-      setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
-    } finally {
-      setLoading(false);
+      setUsers(prev => ({ ...prev, loading: true, error: null }));
+      const params = { ...filters, page, size, sortBy, sortDir };
+      const response = await adminService.getAllUsers(params);
+      setUsers(prev => ({
+        ...prev,
+        loading: false,
+        content: response.data?.content || [],
+        totalElements: response.data?.totalElements || 0,
+        totalPages: response.data?.totalPages || 0,
+        number: response.data?.number || 0,
+        size: response.data?.size || 10
+      }));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setUsers(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Failed to load users'
+      }));
     }
+  };
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
+
+  const handleSearch = (searchTerm) => {
+    setFilters({ ...filters, keyword: searchTerm });
+    setPage(0);
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortDir(sortDir === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(field);
+      setSortDir('ASC');
+    }
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  const handleSizeChange = (newSize) => {
+    setSize(newSize);
+    setPage(0);
   };
 
   const handleEditRole = (user) => {
@@ -74,30 +90,50 @@ const AdminUsers = () => {
 
   const handleUpdateRole = async () => {
     if (!newRole) {
-      alert('Vui lòng chọn vai trò');
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: 'Vui lòng chọn vai trò'
+      });
       return;
     }
 
     try {
-      await axios.put(`/users/${selectedUser.id}/role`, { role: newRole });
-      alert('Cập nhật vai trò thành công');
+      await adminService.updateUserRole(selectedUser.id, newRole);
+      addNotification({
+        type: 'success',
+        title: 'Thành công',
+        message: 'Cập nhật vai trò thành công'
+      });
       setShowEdit(false);
       fetchUsers();
     } catch (err) {
       console.error('Error:', err);
-      alert('Có lỗi xảy ra');
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: err.message || 'Có lỗi xảy ra'
+      });
     }
   };
 
   const handleDelete = async (id) => {
     if (window.confirm('Bạn chắc chắn muốn xóa người dùng này?')) {
       try {
-        await axios.delete(`/users/${id}`);
-        alert('Xóa thành công');
+        await adminService.deleteUser(id);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Xóa người dùng thành công'
+        });
         fetchUsers();
       } catch (err) {
         console.error('Error:', err);
-        alert('Có lỗi xảy ra khi xóa');
+        addNotification({
+          type: 'error',
+          title: 'Lỗi',
+          message: err.message || 'Có lỗi xảy ra khi xóa'
+        });
       }
     }
   };
@@ -118,53 +154,35 @@ const AdminUsers = () => {
     return sortDir === 'ASC' ? <FaSortUp /> : <FaSortDown />;
   };
 
-  // Filter configuration
-  const filterConfig = [
-    {
-      key: 'role',
-      label: 'Vai trò',
-      type: 'select',
-      options: [
-        { value: 'USER', label: 'Khách hàng' },
-        { value: 'ADMIN', label: 'Quản trị viên' }
-      ]
-    },
-    {
-      key: 'status',
-      label: 'Trạng thái',
-      type: 'select',
-      options: [
-        { value: 'ACTIVE', label: 'Hoạt động' },
-        { value: 'INACTIVE', label: 'Không hoạt động' },
-        { value: 'BANNED', label: 'Bị cấm' }
-      ]
-    }
-  ];
-
-  const handleExport = () => {
-    exportToExcel(users, exportConfigs.users.filename, exportConfigs.users.headers);
-  };
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Quản Lý Người Dùng</h1>
       </div>
 
-      {/* Filter Component */}
-      <AdminFilter
-        filters={filterConfig}
-        onFilterChange={handleFilterChange}
-        onSearch={handleSearch}
-        searchPlaceholder="Tìm kiếm theo tên, email, số điện thoại..."
-        showDateRange={true}
-        showExport={true}
-        onExport={handleExport}
-      />
+      {/* Filter Component - Simplified */}
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="flex gap-4 items-center">
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tên, email, số điện thoại..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+          <select
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handleFilterChange({ role: e.target.value })}
+          >
+            <option value="">Tất cả vai trò</option>
+            <option value="USER">Khách hàng</option>
+            <option value="ADMIN">Quản trị viên</option>
+          </select>
+        </div>
+      </div>
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {loading ? (
+        {users.loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
           </div>
@@ -217,7 +235,16 @@ const AdminUsers = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {users.map((user) => (
+                {/* Backend trả về Page<AdminUserResponse> với structure:
+                    {
+                      content: [...],
+                      totalElements: number,
+                      totalPages: number,
+                      number: number (current page),
+                      size: number
+                    }
+                */}
+                {(users?.content || []).map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       {user.fullName}
@@ -234,7 +261,7 @@ const AdminUsers = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : '-'}
+                      {user.createdAt ? formatDate(user.createdAt) : '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="flex gap-2">
@@ -268,7 +295,7 @@ const AdminUsers = () => {
                 ))}
               </tbody>
             </table>
-            {users.length === 0 && (
+            {(users?.content || []).length === 0 && (
               <div className="text-center py-8 text-gray-600">
                 Không có người dùng nào
               </div>
@@ -324,15 +351,35 @@ const AdminUsers = () => {
         </div>
       )}
 
-      {/* Pagination */}
-      <AdminPagination
-        currentPage={pagination.currentPage}
-        totalPages={pagination.totalPages}
-        totalElements={pagination.totalElements}
-        size={pagination.size}
-        onPageChange={handlePageChange}
-        onSizeChange={handleSizeChange}
-      />
+      {/* Pagination - Simplified */}
+      {users.totalPages > 1 && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">
+              Hiển thị {users.content.length} / {users.totalElements} kết quả
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <span className="px-3 py-1 bg-blue-600 text-white rounded">
+                {page + 1} / {users.totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(Math.min(users.totalPages - 1, page + 1))}
+                disabled={page >= users.totalPages - 1}
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

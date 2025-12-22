@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getFeaturedCars } from '../api/carApi';
-import axios from '../api/axios';
+import carService from '../services/carService';
+import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 
 const HomePage = () => {
+  const { user } = useAuth();
+  const { formatCurrency } = useApp();
+  
   const [featuredCars, setFeaturedCars] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,12 +21,12 @@ const HomePage = () => {
     try {
       setLoading(true);
       const [carsResponse, categoriesResponse] = await Promise.all([
-        getFeaturedCars(),
-        axios.get('/categories')
+        carService.getFeaturedCars(),
+        carService.getAllCategories()
       ]);
 
       setFeaturedCars(carsResponse.data || []);
-      setCategories(categoriesResponse.data.data || []);
+      setCategories(categoriesResponse.data || []);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
@@ -32,10 +36,7 @@ const HomePage = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(price);
+    return formatCurrency(price);
   };
 
   if (loading) {
@@ -115,13 +116,50 @@ const HomePage = () => {
                 <Link
                   key={category.id}
                   to={`/cars?category=${category.id}`}
-                  className="bg-gray-100 hover:bg-gray-200 rounded-lg p-6 text-center transition duration-300 transform hover:scale-105"
+                  className="group relative h-64 rounded-xl shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                 >
-                  <div className="text-4xl mb-4">🚗</div>
-                  <h3 className="text-xl font-semibold mb-2">{category.name}</h3>
-                  {category.description && (
-                    <p className="text-gray-600 text-sm">{category.description}</p>
-                  )}
+                  {/* Category Image - Full card background */}
+                  <div className="absolute inset-0">
+                    {category.image ? (
+                      <img
+                        src={category.image}
+                        alt={category.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    {/* Fallback placeholder - shown when no image or image fails to load */}
+                    <div 
+                      className={`w-full h-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200 ${category.image ? 'hidden' : 'flex'}`}
+                    >
+                      <span className="text-8xl opacity-50">🚗</span>
+                    </div>
+                  </div>
+                  
+                  {/* Gradient overlay for text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                  
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  
+                  {/* Category Info - Overlay on image */}
+                  <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+                    <h3 className="text-xl font-bold mb-1 drop-shadow-lg">
+                      {category.name}
+                    </h3>
+                    {category.description && (
+                      <p className="text-white/80 text-sm line-clamp-2 drop-shadow">{category.description}</p>
+                    )}
+                    <div className="mt-3 flex items-center text-white font-medium text-sm">
+                      <span>Xem xe</span>
+                      <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -149,17 +187,19 @@ const HomePage = () => {
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                 >
                   <div className="relative h-64 bg-gray-200">
-                    {car.image ? (
-                      <img
-                        src={car.image}
-                        alt={car.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <span className="text-6xl">🚗</span>
-                      </div>
-                    )}
+                    <img
+                      src={car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg'}
+                      alt={car.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="400" height="256" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="32" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
                     {car.averageRating > 0 && (
                       <div className="absolute top-4 right-4 bg-yellow-400 text-white px-3 py-1 rounded-full text-sm font-semibold">
                         ⭐ {car.averageRating.toFixed(1)}

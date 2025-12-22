@@ -2,9 +2,12 @@ package org.example.config;
 
 import org.example.security.JwtAuthenticationFilter;
 import org.example.security.CustomUserDetailsService;
+import org.example.security.RateLimitingFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -30,6 +33,9 @@ public class SecurityConfig {
     @Autowired
     private CustomUserDetailsService customUserDetailsService;
 
+    @Autowired
+    private RateLimitingFilter rateLimitingFilter;
+
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter();
@@ -38,6 +44,14 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public RoleHierarchy roleHierarchy() {
+        RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
+        String hierarchy = "ROLE_ADMIN > ROLE_USER > ROLE_CUSTOMER";
+        roleHierarchy.setHierarchy(hierarchy);
+        return roleHierarchy;
     }
 
     @Bean
@@ -60,26 +74,28 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints
+                        // Public endpoints - no authentication required
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/categories/**",
                                 "/api/cars/**",
                                 "/api/reviews/car/**")
                         .permitAll()
-                        // Admin only endpoints
-                        .requestMatchers(
-                                "/api/admin/**")
+                        // Admin only endpoints - requires ADMIN role
+                        .requestMatchers("/api/admin/**", "/api/upload/**")
                         .hasRole("ADMIN")
-                        // Authenticated user endpoints
+                        // User endpoints - requires authentication (any authenticated user)
                         .requestMatchers(
+                                "/api/users/**",
+                                "/api/cart/**",
                                 "/api/favorites/**",
                                 "/api/orders/**",
                                 "/api/reviews")
                         .authenticated()
-                        // Any other request
+                        // Any other request requires authentication
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
+                .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

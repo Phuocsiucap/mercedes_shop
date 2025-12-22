@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { updateUserProfile, changePassword } from '../api/userApi';
+import userService from '../services/userService';
+import authService from '../services/authService';
 
 const ProfilePage = () => {
   const { user, login } = useAuth(); // Assuming login updates the user state or we need a way to refresh user
@@ -45,10 +46,14 @@ const ProfilePage = () => {
     setMessage({ type: '', content: '' });
 
     try {
-      await updateUserProfile(formData);
-      setMessage({ type: 'success', content: 'Cập nhật thông tin thành công!' });
-      setIsEditing(false);
-      // Optionally refresh user context here if needed
+      const response = await userService.updateProfile(formData);
+      if (response.success) {
+        setMessage({ type: 'success', content: 'Cập nhật thông tin thành công!' });
+        setIsEditing(false);
+        // Optionally refresh user context here if needed
+      } else {
+        throw new Error(response.message || 'Cập nhật thất bại');
+      }
     } catch (error) {
       setMessage({ type: 'error', content: error.message || 'Có lỗi xảy ra' });
     } finally {
@@ -67,10 +72,19 @@ const ProfilePage = () => {
     setMessage({ type: '', content: '' });
 
     try {
-      await changePassword(passwordData.oldPassword, passwordData.newPassword);
-      setMessage({ type: 'success', content: 'Đổi mật khẩu thành công!' });
-      setIsChangingPassword(false);
-      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      const response = await authService.changePassword({
+        currentPassword: passwordData.oldPassword,
+        newPassword: passwordData.newPassword,
+        confirmPassword: passwordData.confirmPassword
+      });
+      
+      if (response.success) {
+        setMessage({ type: 'success', content: 'Đổi mật khẩu thành công!' });
+        setIsChangingPassword(false);
+        setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        throw new Error(response.message || 'Đổi mật khẩu thất bại');
+      }
     } catch (error) {
       setMessage({ type: 'error', content: error.message || 'Có lỗi xảy ra' });
     } finally {

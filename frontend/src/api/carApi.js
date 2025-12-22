@@ -69,3 +69,14 @@ export const deleteCar = async (id) => {
     throw error.response?.data || error;
   }
 };
+
+// Default export for convenience
+export default {
+  getAllCars,
+  getFeaturedCars,
+  searchCars,
+  getCarById,
+  createCar,
+  updateCar,
+  deleteCar
+};

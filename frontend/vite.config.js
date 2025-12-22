@@ -7,4 +7,9 @@ export default defineConfig({
   server: {
     port: 8888, // Thay 4000 bằng cổng bạn muốn
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
+  },
 })

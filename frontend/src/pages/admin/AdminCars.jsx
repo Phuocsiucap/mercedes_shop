@@ -1,104 +1,74 @@
 import { useState, useEffect } from 'react';
-import axios from '../../api/axios';
 import { FaEdit, FaTrash, FaPlus, FaSort, FaSortUp, FaSortDown, FaEye } from 'react-icons/fa';
-import AdminFilter from '../../components/AdminFilter';
-import AdminPagination from '../../components/AdminPagination';
-import CarDetailModal from '../../components/CarDetailModal';
-import { useAdminFilter } from '../../hooks/useAdminFilter';
-import { exportToExcel, exportConfigs } from '../../utils/exportUtils';
+import adminService from '../../services/adminService';
+import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
+import ImageUploader from '../../components/ui/ImageUploader';
 
 const AdminCars = () => {
-  const [cars, setCars] = useState([]);
+  const { formatCurrency, addNotification } = useApp();
+  
+  const [cars, setCars] = useState({
+    content: [],
+    totalElements: 0,
+    totalPages: 0,
+    number: 0,
+    size: 10,
+    loading: false,
+    error: null
+  });
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
-    categoryId: '',
-    price: '',
-    manufactureYear: '',
-    color: '',
-    engine: '',
-    transmission: '',
-    seats: '',
-    image: '',
-    description: '',
+    name: '', categoryId: '', price: '', manufactureYear: '',
+    color: '', engine: '', transmission: '', seats: '', images: [], description: '',
   });
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState({
-    totalElements: 0,
-    totalPages: 0,
-    currentPage: 0,
-    size: 10
-  });
   const [selectedCar, setSelectedCar] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
-
-  // Filter hook
-  const {
-    filters,
-    searchTerm,
-    sortBy,
-    sortDir,
-    page,
-    size,
-    handleFilterChange,
-    handleSearch,
-    handleSort,
-    handlePageChange,
-    handleSizeChange,
-    queryParams
-  } = useAdminFilter();
+  const [filters, setFilters] = useState({});
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortDir, setSortDir] = useState('DESC');
 
   useEffect(() => {
     fetchCars();
     fetchCategories();
-  }, [queryParams]);
+  }, [filters, page, size, sortBy, sortDir]);
 
   const fetchCars = async () => {
     try {
-      setLoading(true);
-      const params = new URLSearchParams(queryParams);
-      const response = await axios.get(`/admin/cars?${params.toString()}`);
-      
-      // Handle paginated response format
-      if (response.data?.data?.content) {
-        setCars(response.data.data.content);
-        setPagination({
-          totalElements: response.data.data.totalElements,
-          totalPages: response.data.data.totalPages,
-          currentPage: response.data.data.number,
-          size: response.data.data.size
-        });
-      } else {
-        setCars([]);
-        setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
-      }
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching cars:', err);
-      setError('Không thể tải danh sách xe');
-      setCars([]);
-      setPagination({ totalElements: 0, totalPages: 0, currentPage: 0, size: 10 });
-    } finally {
-      setLoading(false);
+      setCars(prev => ({ ...prev, loading: true, error: null }));
+      const params = { ...filters, page, size, sortBy, sortDir };
+      const response = await adminService.getAllCars(params);
+      setCars(prev => ({
+        ...prev,
+        loading: false,
+        content: response.data?.content || [],
+        totalElements: response.data?.totalElements || 0,
+        totalPages: response.data?.totalPages || 0,
+        number: response.data?.number || 0,
+        size: response.data?.size || 10
+      }));
+    } catch (error) {
+      console.error('Error fetching cars:', error);
+      setCars(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Failed to load cars'
+      }));
     }
   };
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/categories');
-      // Handle both response.data.data and response.data formats
-      const data = Array.isArray(response.data?.data) 
-        ? response.data.data 
-        : Array.isArray(response.data) 
-        ? response.data 
-        : [];
-      setCategories(data);
+      const response = await adminService.getAllCategories();
+      setCategories(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Error fetching categories:', err);
-      setCategories([]); // Set empty array on error
+      setCategories([]);
     }
   };
 
@@ -107,6 +77,11 @@ const AdminCars = () => {
 
     if (!formData.name.trim() || !formData.categoryId || !formData.price) {
       setError('Vui lòng điền đầy đủ thông tin');
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: 'Vui lòng điền đầy đủ thông tin'
+      });
       return;
     }
 
@@ -120,19 +95,83 @@ const AdminCars = () => {
       };
 
       if (editingId) {
-        await axios.put(`/cars/${editingId}`, submitData);
-        alert('Cập nhật thành công');
+        await adminService.updateCar(editingId, submitData);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Cập nhật xe thành công'
+        });
       } else {
-        await axios.post('/cars', submitData);
-        alert('Thêm mới thành công');
+        await adminService.createCar(submitData);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Thêm xe mới thành công'
+        });
       }
 
       resetForm();
       fetchCars();
     } catch (err) {
       console.error('Error:', err);
-      setError(err.response?.data?.message || 'Có lỗi xảy ra');
+      const errorMessage = err.message || 'Có lỗi xảy ra';
+      setError(errorMessage);
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: errorMessage
+      });
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Bạn chắc chắn muốn xóa?')) {
+      try {
+        await adminService.deleteCar(id);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Xóa xe thành công'
+        });
+        fetchCars();
+      } catch (err) {
+        console.error('Error:', err);
+        addNotification({
+          type: 'error',
+          title: 'Lỗi',
+          message: err.message || 'Có lỗi xảy ra khi xóa'
+        });
+      }
+    }
+  };
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setPage(0);
+  };
+
+  const handleSearch = (searchTerm) => {
+    setFilters({ ...filters, keyword: searchTerm });
+    setPage(0);
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortDir(sortDir === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(field);
+      setSortDir('ASC');
+    }
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  const handleSizeChange = (newSize) => {
+    setSize(newSize);
+    setPage(0);
   };
 
   const handleEdit = (car) => {
@@ -145,24 +184,11 @@ const AdminCars = () => {
       engine: car.engine,
       transmission: car.transmission,
       seats: car.seats,
-      image: car.image,
+      images: car.images || [],
       description: car.description,
     });
     setEditingId(car.id);
     setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm('Bạn chắc chắn muốn xóa?')) {
-      try {
-        await axios.delete(`/cars/${id}`);
-        alert('Xóa thành công');
-        fetchCars();
-      } catch (err) {
-        console.error('Error:', err);
-        alert('Có lỗi xảy ra khi xóa');
-      }
-    }
   };
 
   const resetForm = () => {
@@ -175,7 +201,7 @@ const AdminCars = () => {
       engine: '',
       transmission: '',
       seats: '',
-      image: '',
+      images: [],
       description: '',
     });
     setEditingId(null);
@@ -184,73 +210,12 @@ const AdminCars = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   const getSortIcon = (field) => {
     if (sortBy !== field) return <FaSort className="opacity-50" />;
     return sortDir === 'ASC' ? <FaSortUp /> : <FaSortDown />;
-  };
-
-  // Filter configuration
-  const filterConfig = [
-    {
-      key: 'categoryId',
-      label: 'Danh mục',
-      type: 'select',
-      options: categories.map(cat => ({ value: cat.id, label: cat.name }))
-    },
-    {
-      key: 'price',
-      label: 'Giá (VND)',
-      type: 'range'
-    },
-    {
-      key: 'year',
-      label: 'Năm sản xuất',
-      type: 'number',
-      placeholder: 'Nhập năm'
-    },
-    {
-      key: 'color',
-      label: 'Màu sắc',
-      type: 'text',
-      placeholder: 'Nhập màu sắc'
-    },
-    {
-      key: 'engine',
-      label: 'Động cơ',
-      type: 'text',
-      placeholder: 'Nhập loại động cơ'
-    },
-    {
-      key: 'transmission',
-      label: 'Hộp số',
-      type: 'text',
-      placeholder: 'Nhập loại hộp số'
-    },
-    {
-      key: 'seats',
-      label: 'Số chỗ ngồi',
-      type: 'number',
-      placeholder: 'Nhập số chỗ'
-    },
-    {
-      key: 'status',
-      label: 'Trạng thái',
-      type: 'select',
-      options: [
-        { value: 'ACTIVE', label: 'Hoạt động' },
-        { value: 'INACTIVE', label: 'Không hoạt động' }
-      ]
-    }
-  ];
-
-  const handleExport = () => {
-    exportToExcel(cars, exportConfigs.cars.filename, exportConfigs.cars.headers);
   };
 
   const handleViewDetail = (car) => {
@@ -270,15 +235,26 @@ const AdminCars = () => {
         </button>
       </div>
 
-      {/* Filter Component */}
-      <AdminFilter
-        filters={filterConfig}
-        onFilterChange={handleFilterChange}
-        onSearch={handleSearch}
-        searchPlaceholder="Tìm kiếm theo tên xe, mô tả..."
-        showExport={true}
-        onExport={handleExport}
-      />
+      {/* Filter Component - Simplified for now */}
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="flex gap-4 items-center">
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tên xe..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+          <select
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handleFilterChange({ categoryId: e.target.value })}
+          >
+            <option value="">Tất cả danh mục</option>
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -404,14 +380,14 @@ const AdminCars = () => {
 
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                URL Hình Ảnh
+                Hình Ảnh Xe
               </label>
-              <input
-                type="text"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="https://example.com/image.jpg"
+              <ImageUploader
+                images={formData.images}
+                onImagesChange={(newImages) => setFormData({ ...formData, images: newImages })}
+                folder="cars"
+                multiple={true}
+                maxImages={10}
               />
             </div>
 
@@ -449,7 +425,7 @@ const AdminCars = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {loading ? (
+        {cars.loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
           </div>
@@ -497,7 +473,16 @@ const AdminCars = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {cars.map((car) => (
+                {/* Backend trả về Page<AdminCarResponse> với structure:
+                    {
+                      content: [...],
+                      totalElements: number,
+                      totalPages: number,
+                      number: number (current page),
+                      size: number
+                    }
+                */}
+                {(cars?.content || []).map((car) => (
                   <tr key={car.id} className="hover:bg-blue-50 transition">
                     <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
@@ -552,7 +537,7 @@ const AdminCars = () => {
                 ))}
               </tbody>
             </table>
-            {cars.length === 0 && (
+            {(!cars?.content || cars.content.length === 0) && (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-lg">Chưa có ô tô nào</p>
                 <p className="text-sm">Nhấn nút "Thêm Ô Tô" để thêm mới</p>
@@ -562,22 +547,148 @@ const AdminCars = () => {
         )}
       </div>
 
-      {/* Pagination */}
-      <AdminPagination
-        currentPage={pagination.currentPage}
-        totalPages={pagination.totalPages}
-        totalElements={pagination.totalElements}
-        size={pagination.size}
-        onPageChange={handlePageChange}
-        onSizeChange={handleSizeChange}
-      />
+      {/* Pagination - Simplified */}
+      {cars.totalPages > 1 && (
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">
+              Hiển thị {cars.content.length} / {cars.totalElements} kết quả
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <span className="px-3 py-1 bg-blue-600 text-white rounded">
+                {page + 1} / {cars.totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(Math.min(cars.totalPages - 1, page + 1))}
+                disabled={page >= cars.totalPages - 1}
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Car Detail Modal */}
-      <CarDetailModal
-        car={selectedCar}
-        isOpen={showDetail}
-        onClose={() => setShowDetail(false)}
-      />
+      {/* Car Detail Modal - Enhanced with Images */}
+      {showDetail && selectedCar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Chi Tiết Xe: {selectedCar.name}</h2>
+              <button
+                onClick={() => setShowDetail(false)}
+                className="text-gray-600 hover:text-gray-800 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              {/* Images Gallery */}
+              {selectedCar.images && selectedCar.images.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-gray-600 text-sm mb-2">Hình ảnh ({selectedCar.images.length})</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {selectedCar.images.map((url, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={url}
+                          alt={`${selectedCar.name} - Ảnh ${index + 1}`}
+                          className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80 transition"
+                          onClick={() => window.open(url, '_blank')}
+                          onError={(e) => {
+                            e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                              <svg width="100" height="96" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="100%" height="100%" fill="#f3f4f6"/>
+                                <text x="50%" y="50%" font-family="Arial" font-size="10" fill="#9ca3af" text-anchor="middle" dy=".3em">Lỗi ảnh</text>
+                              </svg>
+                            `);
+                          }}
+                        />
+                        {index === 0 && (
+                          <span className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1 rounded">
+                            Chính
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Car Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-600 text-sm">Danh mục</p>
+                  <p className="font-semibold">{selectedCar.categoryName || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Giá</p>
+                  <p className="font-semibold text-blue-600">{formatPrice(selectedCar.price)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Năm sản xuất</p>
+                  <p className="font-semibold">{selectedCar.manufactureYear || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Màu sắc</p>
+                  <p className="font-semibold">{selectedCar.color || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Động cơ</p>
+                  <p className="font-semibold">{selectedCar.engine || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Hộp số</p>
+                  <p className="font-semibold">{selectedCar.transmission || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Số chỗ ngồi</p>
+                  <p className="font-semibold">{selectedCar.seats || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-sm">Đánh giá</p>
+                  <p className="font-semibold">
+                    ⭐ {selectedCar.averageRating?.toFixed(1) || '0.0'} ({selectedCar.reviewCount || 0} đánh giá)
+                  </p>
+                </div>
+              </div>
+              
+              {selectedCar.description && (
+                <div className="mt-4">
+                  <p className="text-gray-600 text-sm">Mô tả</p>
+                  <p className="font-semibold">{selectedCar.description}</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  handleEdit(selectedCar);
+                  setShowDetail(false);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+              >
+                ✏️ Chỉnh sửa
+              </button>
+              <button
+                onClick={() => setShowDetail(false)}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

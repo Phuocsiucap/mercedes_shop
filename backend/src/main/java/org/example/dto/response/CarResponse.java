@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -31,7 +32,7 @@ public class CarResponse {
 
     private String description;
 
-    private String image;
+    private List<String> images;
 
     private CategoryResponse category;
 

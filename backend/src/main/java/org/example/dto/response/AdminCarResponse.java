@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -23,7 +24,7 @@ public class AdminCarResponse {
     private String engine;
     private String transmission;
     private Integer seats;
-    private String image;
+    private List<String> images;
     private String description;
     private Double averageRating;
     private Integer reviewCount;

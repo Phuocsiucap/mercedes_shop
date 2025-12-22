@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import AuthLayout from '../components/AuthLayout';
+import AuthLayout from '../components/layouts/AuthLayout';
 import useOAuth from '../hooks/useOAuth';
 import loginCarImage from '../assets/images/login-car.png';
 
@@ -58,9 +58,14 @@ const LoginPage = () => {
       return;
     }
 
-    const result = await login(formData.emailOrPhone, formData.password);
-    if (result.success) {
-      navigate(from, { replace: true });
+    try {
+      const result = await login(formData.emailOrPhone, formData.password);
+      if (result.success) {
+        navigate(from, { replace: true });
+      }
+    } catch (err) {
+      console.error('Login failed:', err);
+      // Error is already handled by AuthContext
     }
   };
 

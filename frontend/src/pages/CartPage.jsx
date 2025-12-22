@@ -2,21 +2,20 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { createOrder } from '../api/orderApi';
+import { useApp } from '../context/AppContext';
+import cartService from '../services/cartService';
 
 const CartPage = () => {
   const { items, totalAmount, updateQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated } = useAuth();
+  const { formatCurrency } = useApp();
   const navigate = useNavigate();
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   const handleQuantityChange = (itemId, newQuantity) => {
@@ -57,13 +56,14 @@ const CartPage = () => {
 
       const orderData = {
         deliveryAddress: deliveryAddress,
+        paymentMethod: 'COD', // Default to cash on delivery
         items: items.map((item) => ({
           carId: item.id,
           quantity: item.quantity,
         })),
       };
 
-      const response = await createOrder(orderData);
+      const response = await cartService.createOrder(orderData);
 
       if (response.success) {
         clearCart();
@@ -124,17 +124,19 @@ const CartPage = () => {
                 >
                   {/* Image */}
                   <Link to={`/cars/${item.id}`} className="flex-shrink-0">
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-24 h-24 object-cover rounded-lg"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center">
-                        <span className="text-3xl">🚗</span>
-                      </div>
-                    )}
+                    <img
+                      src={item.image || '/placeholder-car.jpg'}
+                      alt={item.name}
+                      className="w-24 h-24 object-cover rounded-lg"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="24" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
                   </Link>
 
                   {/* Info */}

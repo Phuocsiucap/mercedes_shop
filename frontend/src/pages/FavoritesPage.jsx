@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserFavorites, removeFavorite } from '../api/favoriteApi';
+import userService from '../services/userService';
+import { useApp } from '../context/AppContext';
 
 const FavoritesPage = () => {
+  const { formatCurrency } = useApp();
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,7 +16,7 @@ const FavoritesPage = () => {
   const fetchFavorites = async () => {
     try {
       setLoading(true);
-      const response = await getUserFavorites();
+      const response = await userService.getFavorites();
       setFavorites(response.data || []);
       setError(null);
     } catch (err) {
@@ -25,11 +27,11 @@ const FavoritesPage = () => {
     }
   };
 
-  const handleRemove = async (favoriteId) => {
+  const handleRemove = async (carId) => {
     if (window.confirm('Bạn có chắc muốn xóa xe này khỏi danh sách yêu thích?')) {
       try {
-        await removeFavorite(favoriteId);
-        setFavorites(favorites.filter((fav) => fav.id !== favoriteId));
+        await userService.removeFromFavorites(carId);
+        setFavorites(favorites.filter((fav) => fav.car?.id !== carId));
       } catch (err) {
         alert('Có lỗi xảy ra khi xóa');
       }
@@ -37,10 +39,7 @@ const FavoritesPage = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   if (loading) {
@@ -85,39 +84,41 @@ const FavoritesPage = () => {
                 key={favorite.id}
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition"
               >
-                <Link to={`/cars/${favorite.carId}`} className="block">
+                <Link to={`/cars/${favorite.car?.id}`} className="block">
                   <div className="relative h-48 bg-gray-200">
-                    {favorite.carImage ? (
-                      <img
-                        src={favorite.carImage}
-                        alt={favorite.carName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <span className="text-6xl">🚗</span>
-                      </div>
-                    )}
+                    <img
+                      src={favorite.car?.image || '/placeholder-car.jpg'}
+                      alt={favorite.car?.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="400" height="192" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="32" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
                   </div>
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                      {favorite.carName}
+                      {favorite.car?.name}
                     </h3>
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                      <span>Màu: {favorite.carColor}</span>
-                      <span>{favorite.carSeats} chỗ</span>
+                      <span>Màu: {favorite.car?.color}</span>
+                      <span>{favorite.car?.seats} chỗ</span>
                     </div>
                     <p className="text-xl font-bold text-blue-600 mb-2">
-                      {formatPrice(favorite.carPrice)}
+                      {formatPrice(favorite.car?.price)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Đã thêm: {new Date(favorite.addedAt).toLocaleDateString('vi-VN')}
+                      Đã thêm: {new Date(favorite.createdAt).toLocaleDateString('vi-VN')}
                     </p>
                   </div>
                 </Link>
                 <div className="p-4 border-t">
                   <button
-                    onClick={() => handleRemove(favorite.id)}
+                    onClick={() => handleRemove(favorite.car?.id)}
                     className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-lg transition"
                   >
                     Xóa khỏi yêu thích
