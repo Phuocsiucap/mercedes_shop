@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { FaCar, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash } from 'react-icons/fa';
-import driverTestApi from '../api/driverTestApi';
-import carApi from '../api/carApi';
+import { driverTestService, carService } from '../services';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 
@@ -42,8 +41,8 @@ const TestDrivePage = () => {
   const fetchMyBookings = async () => {
     try {
       setLoading(true);
-      const response = await driverTestApi.getMyTestDrives();
-      setMyBookings(response.data?.data || []);
+      const response = await driverTestService.getMyTestDrives();
+      setMyBookings(response.data || []);
     } catch (error) {
       console.error('Error fetching bookings:', error);
     } finally {
@@ -53,8 +52,8 @@ const TestDrivePage = () => {
 
   const fetchCars = async () => {
     try {
-      const response = await carApi.getAllCars({ size: 100 });
-      setCars(response.data?.data?.content || response.data?.content || []);
+      const response = await carService.getAllCars({ size: 100 });
+      setCars(response.data?.content || []);
     } catch (error) {
       console.error('Error fetching cars:', error);
     }
@@ -75,7 +74,7 @@ const TestDrivePage = () => {
 
     try {
       setSubmitting(true);
-      await driverTestApi.createTestDrive(formData);
+      await driverTestService.createTestDrive(formData);
       addNotification({ type: 'success', title: 'Thành công', message: 'Đăng ký lái thử thành công! Chúng tôi sẽ liên hệ xác nhận.' });
       setShowForm(false);
       setFormData({ carId: '', location: '', testDriveTime: '', notes: '' });
@@ -90,7 +89,7 @@ const TestDrivePage = () => {
   const handleCancel = async (id) => {
     if (!window.confirm('Bạn có chắc muốn hủy lịch lái thử này?')) return;
     try {
-      await driverTestApi.cancelTestDrive(id);
+      await driverTestService.cancelTestDrive(id);
       addNotification({ type: 'success', title: 'Thành công', message: 'Đã hủy lịch lái thử' });
       fetchMyBookings();
     } catch (error) {

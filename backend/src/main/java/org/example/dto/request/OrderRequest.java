@@ -15,10 +15,13 @@ import java.util.List;
 @AllArgsConstructor
 public class OrderRequest {
 
-    @NotBlank(message = "Địa chỉ giao hàng không được để trống")
     private String deliveryAddress;
 
-    @NotEmpty(message = "Danh sách sản phẩm không được để trống")
+    private String paymentMethod;
+
+    private String notes;
+
+    // Optional: for direct order without cart
     private List<OrderItemRequest> items;
 
     @Data

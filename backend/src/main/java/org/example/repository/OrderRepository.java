@@ -19,5 +19,7 @@ public interface OrderRepository extends MongoRepository<Order, String> {
 
     List<Order> findByStatus(Order.OrderStatus status);
 
-    // Sẽ được implement trong service layer với Criteria API
+    List<Order> findByUserAndStatus(User user, Order.OrderStatus status);
+
+    Page<Order> findByStatus(Order.OrderStatus status, Pageable pageable);
 }
