@@ -17,9 +17,19 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+
+import org.springframework.data.domain.PageImpl;
+
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 @Service
 public class CarService {
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @Autowired
     private CarRepository carRepository;
@@ -48,51 +58,40 @@ public class CarService {
     }
 
     public Page<CarResponse> searchCars(String keyword, String categoryId,
-                                       BigDecimal minPrice, BigDecimal maxPrice,
-                                       Integer year, String color, Pageable pageable) {
+                                        BigDecimal minPrice, BigDecimal maxPrice,
+                                        Integer year, String color, Pageable pageable) {
+        Query query = new Query().with(pageable);
+        List<Criteria> criteriaList = new ArrayList<>();
 
-        // If all filters are null, return all cars
-        if (keyword == null && categoryId == null && minPrice == null &&
-            maxPrice == null && year == null && color == null) {
-            return getAllCars(pageable);
-        }
-
-        // Set default price range if not provided
-        if (minPrice == null) minPrice = BigDecimal.ZERO;
-        if (maxPrice == null) maxPrice = new BigDecimal("999999999999");
-
-        // Search by category and price range
-        if (categoryId != null && !categoryId.isEmpty()) {
-            Category category = categoryService.getCategoryEntityById(categoryId);
-            return carRepository.findByCategoryAndPriceRange(category, minPrice, maxPrice, pageable)
-                    .map(this::mapToResponse);
-        }
-
-        // Search by keyword and price range
         if (keyword != null && !keyword.isEmpty()) {
-            return carRepository.searchByNameAndPriceRange(keyword, minPrice, maxPrice, pageable)
-                    .map(this::mapToResponse);
+            criteriaList.add(Criteria.where("name").regex(keyword, "i"));
         }
-
-        // Search by price range only
-        if (minPrice.compareTo(BigDecimal.ZERO) > 0 || maxPrice.compareTo(new BigDecimal("999999999999")) < 0) {
-            return carRepository.findByPriceBetween(minPrice, maxPrice, pageable)
-                    .map(this::mapToResponse);
+        if (categoryId != null && !categoryId.isEmpty()) {
+            criteriaList.add(Criteria.where("category.id").is(categoryId));
         }
-
-        // Search by year
         if (year != null) {
-            return carRepository.findByManufactureYear(year, pageable)
-                    .map(this::mapToResponse);
+            criteriaList.add(Criteria.where("manufactureYear").is(year));
         }
-
-        // Search by color
         if (color != null && !color.isEmpty()) {
-            return carRepository.findByColor(color, pageable)
-                    .map(this::mapToResponse);
+            criteriaList.add(Criteria.where("color").is(color));
         }
 
-        return getAllCars(pageable);
+        // Khoảng giá
+        if (minPrice != null || maxPrice != null) {
+            Criteria priceCriteria = Criteria.where("price");
+            if (minPrice != null) priceCriteria.gte(minPrice);
+            if (maxPrice != null) priceCriteria.lte(maxPrice);
+            criteriaList.add(priceCriteria);
+        }
+
+        if (!criteriaList.isEmpty()) {
+            query.addCriteria(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
+        }
+
+        List<Car> cars = mongoTemplate.find(query, Car.class);
+        long total = mongoTemplate.count(query.skip(-1).limit(-1), Car.class);
+
+        return new PageImpl<>(cars, pageable, total).map(this::mapToResponse);
     }
 
     public CarResponse createCar(CarRequest request) {
