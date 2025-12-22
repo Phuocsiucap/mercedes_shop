@@ -87,7 +87,7 @@ public class FavoriteService {
                 .carId(favorite.getCar().getId())
                 .carName(favorite.getCar().getName())
                 .carPrice(favorite.getCar().getPrice())
-                .carImage(favorite.getCar().getImage())
+                .carImage(favorite.getCar().getImages().get(0))
                 .carColor(favorite.getCar().getColor())
                 .carSeats(favorite.getCar().getSeats())
                 .addedAt(favorite.getAddedAt())

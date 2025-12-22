@@ -164,7 +164,7 @@ public class OrderService {
                         .id(detail.getId())
                         .carId(detail.getCar().getId())
                         .carName(detail.getCar().getName())
-                        .carImage(detail.getCar().getImage())
+                        .carImage(detail.getCar().getImages().get(0))
                         .quantity(detail.getQuantity())
                         .unitPrice(detail.getUnitPrice())
                         .subtotal(detail.getUnitPrice().multiply(new BigDecimal(detail.getQuantity())))

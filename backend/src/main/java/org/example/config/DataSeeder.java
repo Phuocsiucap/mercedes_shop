@@ -86,8 +86,9 @@ public class DataSeeder {
                     c200.setTransmission("9G-TRONIC");
                     c200.setSeats(5);
                     c200.setDescription("Mẫu sedan hạng sang cỡ nhỏ bán chạy nhất.");
-                    c200.setImage(
-                            "https://www.mercedes-benz.com.vn/content/vietnam/vi/passengercars/models/saloon/c-class/saloon/_jcr_content/root/responsivegrid/simple_stage/simple_stage_item_1603806955.component.damq6.3385061619176.jpg/mercedes-benz-c-class-w206-exterior-front-view-3400x1440.jpg");
+                    c200.setImages(List.of(
+                            "https://www.mercedes-benz.com.vn/content/vietnam/vi/passengercars/models/saloon/c-class/saloon/_jcr_content/root/responsivegrid/simple_stage/simple_stage_item_1603806955.component.damq6.3385061619176.jpg/mercedes-benz-c-class-w206-exterior-front-view-3400x1440.jpg"
+                    ));
                     c200.setCategory(sedan);
 
                     Car e300 = new Car();
@@ -99,9 +100,9 @@ public class DataSeeder {
                     e300.setTransmission("9G-TRONIC");
                     e300.setSeats(5);
                     e300.setDescription("Biểu tượng của sự thành đạt.");
-                    e300.setImage(
-                            "https://www.mercedes-benz.com.vn/content/vietnam/vi/passengercars/models/saloon/e-class/saloon/_jcr_content/root/responsivegrid/simple_stage/simple_stage_item_1603806955.component.damq6.3385061619176.jpg/mercedes-benz-e-class-w213-exterior-front-view-3400x1440.jpg");
-                    e300.setCategory(sedan);
+                    e300.setImages(List.of(
+                            "https://www.mercedes-benz.com.vn/content/vietnam/vi/passengercars/models/saloon/e-class/saloon/_jcr_content/root/responsivegrid/simple_stage/simple_stage_item_1603806955.component.damq6.3385061619176.jpg/mercedes-benz-e-class-w213-exterior-front-view-3400x1440.jpg"
+                    ));e300.setCategory(sedan);
 
                     carRepository.saveAll(Arrays.asList(c200, e300));
                 }
@@ -116,9 +117,9 @@ public class DataSeeder {
                     glc300.setTransmission("9G-TRONIC");
                     glc300.setSeats(5);
                     glc300.setDescription("Mẫu SUV hạng sang được ưa chuộng nhất.");
-                    glc300.setImage(
-                            "https://www.mercedes-benz.com.vn/content/vietnam/vi/passengercars/models/suv/glc/suv/_jcr_content/root/responsivegrid/simple_stage/simple_stage_item_1603806955.component.damq6.3385061619176.jpg/mercedes-benz-glc-x254-exterior-front-view-3400x1440.jpg");
-                    glc300.setCategory(suv);
+                    glc300.setImages(List.of(
+                            "https://www.mercedes-benz.com.vn/content/vietnam/vi/passengercars/models/suv/glc/suv/_jcr_content/root/responsivegrid/simple_stage/simple_stage_item_1603806955.component.damq6.3385061619176.jpg/mercedes-benz-glc-x254-exterior-front-view-3400x1440.jpg"
+                    ));glc300.setCategory(suv);
 
                     carRepository.save(glc300);
                 }

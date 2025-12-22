@@ -107,7 +107,7 @@ public class CarService {
         car.setTransmission(request.getTransmission());
         car.setSeats(request.getSeats());
         car.setDescription(request.getDescription());
-        car.setImage(request.getImage());
+        car.setImages(request.getImages());
         car.setCategory(category);
 
         Car savedCar = carRepository.save(car);
@@ -128,7 +128,7 @@ public class CarService {
         car.setTransmission(request.getTransmission());
         car.setSeats(request.getSeats());
         car.setDescription(request.getDescription());
-        car.setImage(request.getImage());
+        car.setImages(request.getImages());
         car.setCategory(category);
 
         Car updatedCar = carRepository.save(car);
@@ -171,7 +171,7 @@ public class CarService {
                 .transmission(car.getTransmission())
                 .seats(car.getSeats())
                 .description(car.getDescription())
-                .image(car.getImage())
+                .images(car.getImages())
                 .category(categoryResponse)
                 .averageRating(averageRating)
                 .reviewCount(reviews.size())

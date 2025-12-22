@@ -28,37 +28,57 @@ const AdminCars = () => {
   });
   const [error, setError] = useState(null);
 
+  const [pagination, setPagination] = useState({
+  currentPage: 0,
+  size: 5, // Mặc định hiển thị 5 xe
+  totalPages: 0,
+  totalElements: 0
+  });
+
   useEffect(() => {
-    fetchCars();
-    fetchCategories();
-  }, []);
+  fetchCars();
+}, [pagination.currentPage, pagination.size]); // Chạy lại mỗi khi trang hoặc size thay đổi
+
+useEffect(() => {
+  fetchCategories();
+}, []);
+
   const navigate = useNavigate();
   const fetchCars = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/cars');
-      // Handle paginated response format
-      let data = [];
-      if (response.data?.data?.content) {
-        // Pagination format: {content: [...], pageable: {...}, ...}
-        data = response.data.data.content;
-      } else if (Array.isArray(response.data?.data)) {
-        // Array format: response.data.data
-        data = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        // Direct array format: response.data
-        data = response.data;
+  try {
+    setLoading(true);
+    // Truyền params page và size vào API
+    const response = await axios.get('/cars', {
+      params: {
+        page: pagination.currentPage,
+        size: pagination.size
       }
-      setCars(data);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching cars:', err);
-      setError('Không thể tải danh sách xe');
-      setCars([]); // Set empty array on error
-    } finally {
-      setLoading(false);
+    });
+
+    // Giả sử Backend trả về theo cấu trúc chuẩn Spring Boot: response.data.data.content
+    const result = response.data?.data;
+
+    if (result && result.content) {
+      setCars(result.content);
+      // Cập nhật lại thông tin phân trang từ Backend trả về
+      setPagination(prev => ({
+        ...prev,
+        totalPages: result.totalPages,
+        totalElements: result.totalElements
+      }));
+    } else {
+      // Fallback nếu data trả về là mảng trực tiếp
+      setCars(Array.isArray(response.data?.data) ? response.data.data : []);
     }
-  };
+    setError(null);
+  } catch (err) {
+    console.error('Error fetching cars:', err);
+    setError('Không thể tải danh sách xe');
+    setCars([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchCategories = async () => {
     try {
@@ -455,6 +475,60 @@ const AdminCars = () => {
                 ))}
               </tbody>
             </table>
+            {/* Pagination Controls */}
+<div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+  {/* Chọn số lượng hiển thị */}
+  <div className="flex items-center gap-2">
+    <span className="text-sm text-gray-600">Hiển thị:</span>
+    <select
+      value={pagination.size}
+      onChange={(e) => {
+        setPagination(prev => ({ ...prev, size: Number(e.target.value), currentPage: 0 }));
+      }}
+      className="border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+    >
+      <option value={5}>5</option>
+      <option value={10}>10</option>
+      <option value={20}>20</option>
+    </select>
+    <span className="text-sm text-gray-600">trên tổng số {pagination.totalElements} xe</span>
+  </div>
+
+  {/* Điều hướng trang */}
+  {pagination.totalPages > 1 && (
+    <div className="flex items-center space-x-1">
+      <button
+        onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
+        disabled={pagination.currentPage === 0}
+        className="px-3 py-1 border rounded text-sm hover:bg-gray-100 disabled:opacity-50 transition"
+      >
+        Trước
+      </button>
+
+      {[...Array(pagination.totalPages)].map((_, index) => (
+        <button
+          key={index}
+          onClick={() => setPagination(prev => ({ ...prev, currentPage: index }))}
+          className={`px-3 py-1 border rounded text-sm transition ${
+            pagination.currentPage === index
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          {index + 1}
+        </button>
+      ))}
+
+      <button
+        onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
+        disabled={pagination.currentPage === pagination.totalPages - 1}
+        className="px-3 py-1 border rounded text-sm hover:bg-gray-100 disabled:opacity-50 transition"
+      >
+        Sau
+      </button>
+    </div>
+  )}
+</div>
             {cars.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-lg">Chưa có ô tô nào</p>
