@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { searchCars } from '../api/carApi';
-import axios from '../api/axios';
+import carService from '../services/carService';
+import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 
 const CarsPage = () => {
+  const { user } = useAuth();
+  const { formatCurrency } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [cars, setCars] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -13,7 +16,7 @@ const CarsPage = () => {
     currentPage: 0,
     totalPages: 0,
     totalElements: 0,
-    size: 12,
+    size: 10,
   });
 
   const [filters, setFilters] = useState({
@@ -39,8 +42,8 @@ const CarsPage = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/categories');
-      setCategories(response.data.data || []);
+      const response = await carService.getAllCategories();
+      setCategories(response.data || []);
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -49,20 +52,22 @@ const CarsPage = () => {
   const fetchCars = async () => {
     try {
       setLoading(true);
-      const params = {
-        page: pagination.currentPage,
-        size: pagination.size,
-        sortBy: filters.sortBy,
-        sortDir: filters.sortDir,
-        ...(filters.keyword && { keyword: filters.keyword }),
-        ...(filters.categoryId && { categoryId: filters.categoryId }),
-        ...(filters.minPrice && { minPrice: filters.minPrice }),
-        ...(filters.maxPrice && { maxPrice: filters.maxPrice }),
-        ...(filters.year && { year: filters.year }),
-        ...(filters.color && { color: filters.color }),
+    const params = {
+      page: pagination.currentPage,
+      size: pagination.size,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+      ...(filters.keyword && { keyword: filters.keyword }),
+      ...(filters.categoryId && { categoryId: filters.categoryId }),
+      // QUAN TRỌNG: Ép kiểu sang Number trước khi gửi đi
+      ...(filters.minPrice && { minPrice: Number(filters.minPrice) }),
+      ...(filters.maxPrice && { maxPrice: Number(filters.maxPrice) }),
+      ...(filters.year && { year: Number(filters.year) }),
+      ...(filters.color && { color: filters.color }),
+    
       };
 
-      const response = await searchCars(params);
+      const response = await carService.getFilteredAndSortedCars(params);
       const data = response.data;
 
       setCars(data.content || []);
@@ -121,10 +126,7 @@ const CarsPage = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(price);
+    return formatCurrency(price);
   };
 
   return (
@@ -311,17 +313,19 @@ const CarsPage = () => {
                       className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                     >
                       <div className="relative h-48 bg-gray-200">
-                        {car.image ? (
-                          <img
-                            src={car.image}
-                            alt={car.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-gray-400">
-                            <span className="text-6xl">🚗</span>
-                          </div>
-                        )}
+                        <img
+                          src={car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg'}
+                          alt={car.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                              <svg width="400" height="192" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="100%" height="100%" fill="#f3f4f6"/>
+                                <text x="50%" y="50%" font-family="Arial" font-size="32" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                              </svg>
+                            `);
+                          }}
+                        />
                         {car.averageRating > 0 && (
                           <div className="absolute top-2 right-2 bg-yellow-400 text-white px-2 py-1 rounded-full text-xs font-semibold">
                             ⭐ {car.averageRating.toFixed(1)}

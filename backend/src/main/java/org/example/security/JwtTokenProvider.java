@@ -32,27 +32,35 @@ public class JwtTokenProvider {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
+        // Lưu email vào subject để authentication.getName() trả về email
         return Jwts.builder()
-                .setSubject(userPrincipal.getId())
+                .setSubject(userPrincipal.getEmail())
+                .claim("userId", userPrincipal.getId())
+                .claim("role", userPrincipal.getAuthorities().iterator().next().getAuthority())
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
 
-    public String generateTokenFromUserId(String userId) {
+    public String generateTokenFromUser(User user) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         return Jwts.builder()
-                .setSubject(userId)
+                .setSubject(user.getEmail())
+                .claim("userId", user.getId())
+                .claim("role", "ROLE_" + user.getRole().name())
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
 
-    public String getUserIdFromToken(String token) {
+    /**
+     * Lấy email từ token (subject)
+     */
+    public String getEmailFromToken(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
                 .build()
@@ -60,6 +68,32 @@ public class JwtTokenProvider {
                 .getBody();
 
         return claims.getSubject();
+    }
+
+    /**
+     * Lấy userId từ token (claim)
+     */
+    public String getUserIdFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.get("userId", String.class);
+    }
+
+    /**
+     * Lấy role từ token
+     */
+    public String getRoleFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.get("role", String.class);
     }
 
     public boolean validateToken(String authToken) {

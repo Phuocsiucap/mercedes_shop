@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import axios from '../../api/axios';
 import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { categoryService } from '../../services';
+import { useApp } from '../../context/AppContext';
+import ImageUploader from '../../components/ui/ImageUploader';
 
 const AdminCategories = () => {
+  const { addNotification } = useApp();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -10,6 +13,7 @@ const AdminCategories = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    image: '',
   });
   const [error, setError] = useState(null);
 
@@ -20,8 +24,8 @@ const AdminCategories = () => {
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/categories');
-      setCategories(response.data.data || []);
+      const response = await categoryService.getAllCategories();
+      setCategories(response.data || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -34,25 +38,48 @@ const AdminCategories = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    console.log('Form submitted with data:', formData); // Debug log
+
     if (!formData.name.trim()) {
       setError('Tên danh mục không được để trống');
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: 'Tên danh mục không được để trống'
+      });
       return;
     }
 
     try {
       if (editingId) {
-        await axios.put(`/categories/${editingId}`, formData);
-        alert('Cập nhật thành công');
+        console.log('Updating category:', editingId, formData); // Debug log
+        await categoryService.updateCategory(editingId, formData);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Cập nhật danh mục thành công'
+        });
       } else {
-        await axios.post('/categories', formData);
-        alert('Thêm mới thành công');
+        console.log('Creating category:', formData); // Debug log
+        await categoryService.createCategory(formData);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Thêm danh mục mới thành công'
+        });
       }
 
       resetForm();
       fetchCategories();
     } catch (err) {
       console.error('Error:', err);
-      setError(err.response?.data?.message || 'Có lỗi xảy ra');
+      const errorMessage = err.message || 'Có lỗi xảy ra';
+      setError(errorMessage);
+      addNotification({
+        type: 'error',
+        title: 'Lỗi',
+        message: errorMessage
+      });
     }
   };
 
@@ -60,6 +87,7 @@ const AdminCategories = () => {
     setFormData({
       name: category.name,
       description: category.description,
+      image: category.image || '',
     });
     setEditingId(category.id);
     setShowForm(true);
@@ -68,18 +96,26 @@ const AdminCategories = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Bạn chắc chắn muốn xóa?')) {
       try {
-        await axios.delete(`/categories/${id}`);
-        alert('Xóa thành công');
+        await categoryService.deleteCategory(id);
+        addNotification({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Xóa danh mục thành công'
+        });
         fetchCategories();
       } catch (err) {
         console.error('Error:', err);
-        alert('Có lỗi xảy ra khi xóa');
+        addNotification({
+          type: 'error',
+          title: 'Lỗi',
+          message: err.message || 'Có lỗi xảy ra khi xóa'
+        });
       }
     }
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '' });
+    setFormData({ name: '', description: '', image: '' });
     setEditingId(null);
     setShowForm(false);
     setError(null);
@@ -112,14 +148,19 @@ const AdminCategories = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên Danh Mục
+                Tên Danh Mục <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                onChange={(e) => {
+                  console.log('Name changed:', e.target.value); // Debug log
+                  setFormData({ ...formData, name: e.target.value });
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 placeholder="Nhập tên danh mục"
+                required
+                autoComplete="off"
               />
             </div>
 
@@ -129,10 +170,27 @@ const AdminCategories = () => {
               </label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                onChange={(e) => {
+                  console.log('Description changed:', e.target.value); // Debug log
+                  setFormData({ ...formData, description: e.target.value });
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent resize-vertical"
                 placeholder="Nhập mô tả"
                 rows="3"
+                autoComplete="off"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hình Ảnh Danh Mục
+              </label>
+              <ImageUploader
+                images={formData.image ? [formData.image] : []}
+                onImagesChange={(newImages) => setFormData({ ...formData, image: newImages[0] || '' })}
+                folder="categories"
+                multiple={false}
+                maxImages={1}
               />
             </div>
 
@@ -170,6 +228,9 @@ const AdminCategories = () => {
                     ID
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Ảnh
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Tên
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -185,6 +246,19 @@ const AdminCategories = () => {
                   <tr key={category.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       {category.id}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      {category.image ? (
+                        <img
+                          src={category.image}
+                          alt={category.name}
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                          <span className="text-xs text-gray-500">No Image</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {category.name}

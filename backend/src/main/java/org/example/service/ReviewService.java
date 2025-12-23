@@ -1,98 +1,180 @@
 package org.example.service;
 
 import org.example.dto.request.ReviewRequest;
+import org.example.dto.response.ApiResponse;
 import org.example.dto.response.ReviewResponse;
 import org.example.entity.Car;
 import org.example.entity.Review;
 import org.example.entity.User;
 import org.example.exception.BadRequestException;
 import org.example.exception.ResourceNotFoundException;
+import org.example.repository.CarRepository;
 import org.example.repository.ReviewRepository;
+import org.example.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class ReviewService {
 
     @Autowired
     private ReviewRepository reviewRepository;
 
     @Autowired
-    private CarService carService;
+    private UserRepository userRepository;
 
     @Autowired
-    private AuthService authService;
+    private CarRepository carRepository;
 
+    /**
+     * Lấy đánh giá theo xe
+     */
     public List<ReviewResponse> getReviewsByCarId(String carId) {
-        Car car = carService.getCarEntityById(carId);
-        return reviewRepository.findByCar(car).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        Car car = carRepository.findById(carId)
+            .orElseThrow(() -> new ResourceNotFoundException("Car not found"));
+
+        List<Review> reviews = reviewRepository.findByCar(car);
+        
+        return reviews.stream()
+            .map(this::toReviewResponse)
+            .collect(Collectors.toList());
     }
 
-    public List<ReviewResponse> getReviewsByUserId(String userId) {
-        User user = new User();
-        user.setId(userId);
-        return reviewRepository.findByUser(user).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    /**
+     * Lấy chi tiết đánh giá
+     */
+    public ReviewResponse getReviewById(String reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+            .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+
+        return toReviewResponse(review);
     }
 
-    public ReviewResponse createReview(ReviewRequest request) {
-        User currentUser = authService.getCurrentUser();
-        Car car = carService.getCarEntityById(request.getCarId());
+    /**
+     * Tạo đánh giá mới
+     */
+    public ApiResponse<ReviewResponse> createReview(String userId, @Valid ReviewRequest reviewRequest) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Validate rating
-        if (request.getRating() < 1 || request.getRating() > 5) {
-            throw new BadRequestException("Đánh giá phải từ 1 đến 5 sao");
+        Car car = carRepository.findById(reviewRequest.getCarId())
+            .orElseThrow(() -> new ResourceNotFoundException("Car not found"));
+
+        // Kiểm tra user đã đánh giá xe này chưa
+        if (reviewRepository.existsByUserAndCar(user, car)) {
+            throw new BadRequestException("Bạn đã đánh giá xe này rồi");
         }
 
         Review review = new Review();
-        review.setUser(currentUser);
+        review.setUser(user);
         review.setCar(car);
-        review.setContent(request.getContent());
-        review.setRating(request.getRating());
+        review.setRating(reviewRequest.getRating());
+        review.setContent(reviewRequest.getComment());
         review.setCreatedAt(LocalDateTime.now());
 
         Review savedReview = reviewRepository.save(review);
-        return mapToResponse(savedReview);
+
+        return ApiResponse.<ReviewResponse>builder()
+            .success(true)
+            .message("Đánh giá đã được thêm thành công")
+            .data(toReviewResponse(savedReview))
+            .timestamp(LocalDateTime.now())
+            .build();
     }
 
-    public void deleteReview(String id) {
-        Review review = reviewRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Đánh giá", "id", id));
+    /**
+     * Cập nhật đánh giá
+     */
+    public ApiResponse<ReviewResponse> updateReview(String userId, String reviewId, @Valid ReviewRequest reviewRequest) {
+        Review review = reviewRepository.findById(reviewId)
+            .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
 
-        User currentUser = authService.getCurrentUser();
+        // Verify ownership
+        if (!review.getUser().getId().equals(userId)) {
+            throw new BadRequestException("Bạn không có quyền sửa đánh giá này");
+        }
 
-        // Check if user is the owner of the review or admin
-        if (!review.getUser().getId().equals(currentUser.getId()) &&
-            currentUser.getRole() != User.Role.ADMIN) {
+        review.setRating(reviewRequest.getRating());
+        review.setContent(reviewRequest.getComment());
+
+        Review updatedReview = reviewRepository.save(review);
+
+        return ApiResponse.<ReviewResponse>builder()
+            .success(true)
+            .message("Cập nhật đánh giá thành công")
+            .data(toReviewResponse(updatedReview))
+            .timestamp(LocalDateTime.now())
+            .build();
+    }
+
+    /**
+     * Xóa đánh giá
+     */
+    public ApiResponse<String> deleteReview(String userId, String reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+            .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+
+        // Verify ownership
+        if (!review.getUser().getId().equals(userId)) {
             throw new BadRequestException("Bạn không có quyền xóa đánh giá này");
         }
 
         reviewRepository.delete(review);
+
+        return ApiResponse.<String>builder()
+            .success(true)
+            .message("Xóa đánh giá thành công")
+            .data("Review deleted")
+            .timestamp(LocalDateTime.now())
+            .build();
     }
 
-    public List<ReviewResponse> getAllReviews() {
-        return reviewRepository.findAll().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    /**
+     * [Admin] Lấy tất cả đánh giá
+     */
+    public Page<ReviewResponse> getAllReviews(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Review> reviews = reviewRepository.findAll(pageable);
+        
+        return reviews.map(this::toReviewResponse);
     }
 
-    private ReviewResponse mapToResponse(Review review) {
-        return ReviewResponse.builder()
-                .id(review.getId())
-                .userId(review.getUser().getId())
-                .userName(review.getUser().getFullName())
-                .carId(review.getCar().getId())
-                .carName(review.getCar().getName())
-                .content(review.getContent())
-                .rating(review.getRating())
-                .createdAt(review.getCreatedAt())
-                .build();
+    /**
+     * [Admin] Xóa đánh giá
+     */
+    public ApiResponse<String> adminDeleteReview(String reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+            .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+
+        reviewRepository.delete(review);
+
+        return ApiResponse.<String>builder()
+            .success(true)
+            .message("Xóa đánh giá thành công")
+            .data("Review deleted")
+            .timestamp(LocalDateTime.now())
+            .build();
+    }
+
+    private ReviewResponse toReviewResponse(Review review) {
+        ReviewResponse response = new ReviewResponse();
+        response.setId(review.getId());
+        response.setUserId(review.getUser().getId());
+        response.setUserName(review.getUser().getFullName());
+        response.setCarId(review.getCar().getId());
+        response.setRating(review.getRating());
+        response.setContent(review.getContent());
+        response.setCreatedAt(review.getCreatedAt());
+        return response;
     }
 }

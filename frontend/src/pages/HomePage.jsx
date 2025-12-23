@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getFeaturedCars } from '../api/carApi';
-import axios from '../api/axios';
+import carService from '../services/carService';
+import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
+import { FaFire } from 'react-icons/fa'; // Import icon lửa cho phần Hot
 
 const HomePage = () => {
+  const { user } = useAuth();
+  const { formatCurrency } = useApp();
+  
+  // State cũ
   const [featuredCars, setFeaturedCars] = useState([]);
   const [categories, setCategories] = useState([]);
+  
+  // [MỚI] State cho Top xe bán chạy
+  const [topSellingCars, setTopSellingCars] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -16,13 +26,20 @@ const HomePage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [carsResponse, categoriesResponse] = await Promise.all([
-        getFeaturedCars(),
-        axios.get('/categories')
+      // Gọi song song 3 API: Featured, Categories, và TopSelling
+      const [carsResponse, categoriesResponse, topSellingResponse] = await Promise.all([
+        carService.getFeaturedCars(),
+        carService.getAllCategories(),
+        carService.getTopSellingCars() // [MỚI] Gọi hàm này
       ]);
 
       setFeaturedCars(carsResponse.data || []);
-      setCategories(categoriesResponse.data.data || []);
+      setCategories(categoriesResponse.data || []);
+      
+      // [MỚI] Xử lý dữ liệu Top Selling (hỗ trợ cả dạng trang .content hoặc mảng thường)
+      const topSellingData = topSellingResponse.data?.content || topSellingResponse.data || [];
+      setTopSellingCars(topSellingData);
+
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
@@ -32,10 +49,7 @@ const HomePage = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(price);
+    return formatCurrency(price);
   };
 
   if (loading) {
@@ -48,26 +62,60 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-gray-900 to-gray-800 text-white py-20">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6">
+      {/* Hero Video Banner Section */}
+      <section className="relative h-screen min-h-[600px] overflow-hidden">
+        {/* Background Video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute top-0 left-0 w-full h-full object-cover"
+        >
+          <source
+            src="https://www.mercedes-benz.com.vn/content/dam/vietnam/passengercars/homepage-stage/8251246_2023_MB_ROS_EClass_Exclusive_Cinema_Hero_30Sec_Clean_1920x1080px%20original.mp4"
+            type="video/mp4"
+          />
+          Your browser does not support the video tag.
+        </video>
+
+        {/* Overlay Gradient */}
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-black/70 via-black/50 to-transparent"></div>
+
+        {/* Content */}
+        <div className="relative z-10 container mx-auto px-4 h-full flex items-center">
+          <div className="max-w-3xl text-white">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-fade-in-up">
               Mercedes-Benz
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-gray-300">
+            <p className="text-2xl md:text-4xl mb-8 font-light tracking-wide animate-fade-in-up animation-delay-200">
               The Best or Nothing
             </p>
-            <p className="text-lg mb-8 text-gray-400">
+            <p className="text-lg md:text-xl mb-10 text-gray-200 max-w-2xl animate-fade-in-up animation-delay-400">
               Khám phá bộ sưu tập xe Mercedes-Benz cao cấp với công nghệ hiện đại và thiết kế sang trọng
             </p>
             <Link
               to="/cars"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition duration-300"
+              className="inline-block bg-white text-gray-900 hover:bg-gray-100 font-semibold px-10 py-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-lg animate-fade-in-up animation-delay-600"
             >
               Xem tất cả xe
             </Link>
           </div>
+        </div>
+
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
+          <svg
+            className="w-6 h-6 text-white"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+          </svg>
         </div>
       </section>
 
@@ -81,13 +129,50 @@ const HomePage = () => {
                 <Link
                   key={category.id}
                   to={`/cars?category=${category.id}`}
-                  className="bg-gray-100 hover:bg-gray-200 rounded-lg p-6 text-center transition duration-300 transform hover:scale-105"
+                  className="group relative h-64 rounded-xl shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                 >
-                  <div className="text-4xl mb-4">🚗</div>
-                  <h3 className="text-xl font-semibold mb-2">{category.name}</h3>
-                  {category.description && (
-                    <p className="text-gray-600 text-sm">{category.description}</p>
-                  )}
+                  {/* Category Image - Full card background */}
+                  <div className="absolute inset-0">
+                    {category.image ? (
+                      <img
+                        src={category.image}
+                        alt={category.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    {/* Fallback placeholder */}
+                    <div 
+                      className={`w-full h-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200 ${category.image ? 'hidden' : 'flex'}`}
+                    >
+                      <span className="text-8xl opacity-50">🚗</span>
+                    </div>
+                  </div>
+                  
+                  {/* Gradient overlay for text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                  
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  
+                  {/* Category Info - Overlay on image */}
+                  <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+                    <h3 className="text-xl font-bold mb-1 drop-shadow-lg">
+                      {category.name}
+                    </h3>
+                    {category.description && (
+                      <p className="text-white/80 text-sm line-clamp-2 drop-shadow">{category.description}</p>
+                    )}
+                    <div className="mt-3 flex items-center text-white font-medium text-sm">
+                      <span>Xem xe</span>
+                      <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -95,7 +180,74 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* Featured Cars Section */}
+      {/* --- [PHẦN MỚI] Top Xe Đang Bán Chạy Nhất --- */}
+      {topSellingCars.length > 0 && (
+        <section className="py-16 bg-blue-50">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold text-gray-900 flex items-center justify-center gap-2">
+                    <FaFire className="text-orange-500" /> Top Xe Đang Bán Chạy Nhất
+                </h2>
+                <p className="text-gray-600 mt-2">Những mẫu xe được khách hàng yêu thích và lựa chọn nhiều nhất.</p>
+            </div>
+
+            {/* Grid hiển thị đúng 4 xe */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {topSellingCars.slice(0, 4).map((car, index) => ( // .slice(0, 4) để chỉ lấy 4 xe
+                <Link
+                  key={car.id}
+                  to={`/cars/${car.id}`}
+                  className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-2xl transition duration-300 transform hover:-translate-y-2 relative group"
+                >
+                  {/* Badge Thứ Hạng */}
+                  <div className="absolute top-0 left-0 bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold px-4 py-1 rounded-br-2xl z-20 shadow-md">
+                    #{index + 1} Best Seller
+                  </div>
+
+                  <div className="relative h-56 bg-gray-200 overflow-hidden">
+                    <img
+                      src={car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg'}
+                      alt={car.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="400" height="256" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="32" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
+                    {/* Hot Deal Badge */}
+                    <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded text-xs font-bold text-orange-600 shadow-sm">
+                        Hot Deal
+                    </div>
+                  </div>
+
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-800 mb-1 truncate" title={car.name}>
+                      {car.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">{car.category?.name || 'Sedan'} • {car.manufactureYear}</p>
+                    
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <span className="text-xl font-extrabold text-blue-600">
+                        {formatPrice(car.price)}
+                      </span>
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-blue-600 hover:text-white transition">
+                        Chi tiết
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+      {/* ---------------------------------------------- */}
+
+      {/* Featured Cars Section (Xe Nổi Bật - Giữ nguyên) */}
       <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Xe Nổi Bật</h2>
@@ -115,17 +267,19 @@ const HomePage = () => {
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-1"
                 >
                   <div className="relative h-64 bg-gray-200">
-                    {car.image ? (
-                      <img
-                        src={car.image}
-                        alt={car.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <span className="text-6xl">🚗</span>
-                      </div>
-                    )}
+                    <img
+                      src={car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg'}
+                      alt={car.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="400" height="256" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="32" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
                     {car.averageRating > 0 && (
                       <div className="absolute top-4 right-4 bg-yellow-400 text-white px-3 py-1 rounded-full text-sm font-semibold">
                         ⭐ {car.averageRating.toFixed(1)}

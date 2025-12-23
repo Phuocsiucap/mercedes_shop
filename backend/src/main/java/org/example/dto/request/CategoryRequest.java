@@ -18,4 +18,6 @@ public class CategoryRequest {
 
     @Size(max = 500, message = "Mô tả tối đa 500 ký tự")
     private String description;
+
+    private String image;
 }

@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -45,7 +46,7 @@ public class CarRequest {
     @Size(max = 2000, message = "Mô tả tối đa 2000 ký tự")
     private String description;
 
-    private String image;
+    private List<String> images;
 
     @NotBlank(message = "Danh mục không được để trống")
     private String categoryId;

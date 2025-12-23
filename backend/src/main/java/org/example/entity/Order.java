@@ -31,9 +31,17 @@ public class Order {
 
     private String deliveryAddress;
 
+    private String paymentMethod;
+
+    private String notes;
+
     public enum OrderStatus {
         PENDING,
+        CONFIRMED,
+        PROCESSING,
+        SHIPPED,
         DELIVERING,
+        DELIVERED,
         COMPLETED,
         CANCELLED
     }

@@ -1,16 +1,16 @@
 package org.example.controller;
 
-import jakarta.validation.Valid;
 import org.example.dto.request.CategoryRequest;
 import org.example.dto.response.ApiResponse;
 import org.example.dto.response.CategoryResponse;
 import org.example.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -21,39 +21,109 @@ public class CategoryController {
     @Autowired
     private CategoryService categoryService;
 
+    /**
+     * Lấy tất cả danh mục
+     */
     @GetMapping
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories() {
-        List<CategoryResponse> categories = categoryService.getAllCategories();
-        return ResponseEntity.ok(ApiResponse.success(categories));
+        try {
+            List<CategoryResponse> categories = categoryService.getAllCategories();
+            
+            return ResponseEntity.ok(ApiResponse.<List<CategoryResponse>>builder()
+                .success(true)
+                .message("Lấy danh sách danh mục thành công")
+                .data(categories)
+                .timestamp(LocalDateTime.now())
+                .build());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<List<CategoryResponse>>builder()
+                .success(false)
+                .message("Lỗi: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build());
+        }
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<CategoryResponse>> getCategoryById(@PathVariable String id) {
-        CategoryResponse category = categoryService.getCategoryById(id);
-        return ResponseEntity.ok(ApiResponse.success(category));
+    /**
+     * Lấy chi tiết danh mục
+     */
+    @GetMapping("/{categoryId}")
+    public ResponseEntity<ApiResponse<CategoryResponse>> getCategoryById(
+            @PathVariable String categoryId) {
+        try {
+            CategoryResponse category = categoryService.getCategoryById(categoryId);
+            
+            return ResponseEntity.ok(ApiResponse.<CategoryResponse>builder()
+                .success(true)
+                .message("Lấy chi tiết danh mục thành công")
+                .data(category)
+                .timestamp(LocalDateTime.now())
+                .build());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<CategoryResponse>builder()
+                .success(false)
+                .message("Lỗi: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build());
+        }
     }
 
+    /**
+     * [Admin] Tạo danh mục mới
+     */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(@Valid @RequestBody CategoryRequest request) {
-        CategoryResponse category = categoryService.createCategory(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Tạo danh mục thành công", category));
+    public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
+            @Valid @RequestBody CategoryRequest categoryRequest) {
+        try {
+            ApiResponse<CategoryResponse> response = categoryService.createCategory(categoryRequest);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<CategoryResponse>builder()
+                .success(false)
+                .message("Lỗi: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build());
+        }
     }
 
-    @PutMapping("/{id}")
+    /**
+     * [Admin] Cập nhật danh mục
+     */
+    @PutMapping("/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
-            @PathVariable String id,
-            @Valid @RequestBody CategoryRequest request) {
-        CategoryResponse category = categoryService.updateCategory(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật danh mục thành công", category));
+            @PathVariable String categoryId,
+            @Valid @RequestBody CategoryRequest categoryRequest) {
+        try {
+            ApiResponse<CategoryResponse> response = categoryService.updateCategory(
+                categoryId, categoryRequest);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<CategoryResponse>builder()
+                .success(false)
+                .message("Lỗi: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build());
+        }
     }
 
-    @DeleteMapping("/{id}")
+    /**
+     * [Admin] Xóa danh mục
+     */
+    @DeleteMapping("/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable String id) {
-        categoryService.deleteCategory(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa danh mục thành công", null));
+    public ResponseEntity<ApiResponse<String>> deleteCategory(
+            @PathVariable String categoryId) {
+        try {
+            ApiResponse<String> response = categoryService.deleteCategory(categoryId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
+                .success(false)
+                .message("Lỗi: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build());
+        }
     }
 }

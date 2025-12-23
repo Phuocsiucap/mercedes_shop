@@ -3,26 +3,44 @@ import {
   Routes,
   Route,
   Navigate,
+  useNavigate,
 } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
+import { AppProvider } from "./context/AppContext";
+import ReduxProvider from "./redux/Provider";
 import { useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
-import HomePage from "./pages/HomePage";
+import ErrorBoundary from "./components/ui/ErrorBoundary";
+import AdminLayout from "./components/layouts/AdminLayout";
 import LoginPage from "./pages/LoginPage";
 
 // Lazy load other pages
 import { lazy, Suspense } from "react";
 
+const HomePage = lazy(() => import("./pages/HomePage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const CarsPage = lazy(() => import("./pages/CarsPage"));
 const CarDetailPage = lazy(() => import("./pages/CarDetailPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const FavoritesPage = lazy(() => import("./pages/FavoritesPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminCars = lazy(() => import("./pages/admin/AdminCars"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOrders = lazy(() => import("./pages/admin/AdminOrders"));
+const AdminPayments = lazy(() => import("./pages/admin/AdminPayments"));
+const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminTestDrive = lazy(() => import("./pages/admin/AdminTestDrive"));
+const TestDrivePage = lazy(() => import("./pages/TestDrivePage"));
+const GitHubCallbackPage = lazy(() => import("./pages/GitHubCallbackPage"));
+const VNPayReturnPage = lazy(() => import("./pages/VNPayReturnPage"));
+const TestDrivePaymentReturnPage = lazy(() => import("./pages/TestDrivePaymentReturnPage"));
+
 
 // Loading component
 const LoadingSpinner = () => (
@@ -58,21 +76,56 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.role !== "ADMIN") {
+  // Check for admin role - handle both "ADMIN" and "ROLE_ADMIN" formats
+  const isAdmin = user?.role === "ADMIN" || user?.role === "ROLE_ADMIN";
+  if (!isAdmin) {
+    // Show alert for non-admin users
+    alert('Bạn không có quyền truy cập trang quản trị. Chỉ tài khoản Admin mới có thể truy cập.');
     return <Navigate to="/" replace />;
   }
 
   return children;
 };
 
-// Layout Component
+// Admin Page Wrapper Component
+const AdminPageWrapper = ({ children, activeTab }) => {
+  const navigate = useNavigate();
+
+  const handleTabChange = (tab) => {
+    const pathMap = {
+      'home': '/admin',
+      'cars': '/admin/cars',
+      'users': '/admin/users',
+      'orders': '/admin/orders',
+      'payments': '/admin/payments',
+      'categories': '/admin/categories',
+      'reports': '/admin/reports',
+      'test-drives': '/admin/test-drives'
+    };
+    navigate(pathMap[tab] || '/admin');
+  };
+
+  return (
+    <AdminLayout activeTab={activeTab} onTabChange={handleTabChange}>
+      {children}
+    </AdminLayout>
+  );
+};
+
+// Layout Component with Error Boundary
 const Layout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <main>{children}</main>
-      <Footer />
-    </div>
+    <ErrorBoundary
+      title="Lỗi trang"
+      message="Có lỗi xảy ra khi tải trang. Vui lòng thử lại."
+      onGoHome={() => window.location.href = '/'}
+    >
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <main>{children}</main>
+        <Footer />
+      </div>
+    </ErrorBoundary>
   );
 };
 
@@ -127,16 +180,20 @@ const Footer = () => {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <CartProvider>
-          <Routes>
+    <ReduxProvider>
+      <Router>
+        <AppProvider>
+          <AuthProvider>
+            <CartProvider>
+            <Routes>
             {/* Public Routes */}
             <Route
               path="/"
               element={
                 <Layout>
-                  <HomePage />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <HomePage />
+                  </Suspense>
                 </Layout>
               }
             />
@@ -153,6 +210,15 @@ function App() {
               element={
                 <Suspense fallback={<LoadingSpinner />}>
                   <RegisterPage />
+                </Suspense>
+              }
+            />
+            {/* OAuth Callback Routes */}
+            <Route
+              path="/auth/github/callback"
+              element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <GitHubCallbackPage />
                 </Suspense>
               }
             />
@@ -184,6 +250,42 @@ function App() {
                     <CartPage />
                   </Suspense>
                 </Layout>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <CheckoutPage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vnpay-return"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <VNPayReturnPage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/test-drive-payment-return"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <TestDrivePaymentReturnPage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
               }
             />
 
@@ -236,14 +338,112 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/test-drive"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <TestDrivePage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
             {/* Admin Routes */}
             <Route
-              path="/admin/*"
+              path="/admin"
               element={
                 <AdminRoute>
                   <Suspense fallback={<LoadingSpinner />}>
-                    <AdminDashboard />
+                    <AdminPageWrapper activeTab="home">
+                      <AdminDashboard />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/cars"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="cars">
+                      <AdminCars />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="users">
+                      <AdminUsers />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/orders"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="orders">
+                      <AdminOrders />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/payments"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="payments">
+                      <AdminPayments />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/categories"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="categories">
+                      <AdminCategories />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/reports"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="reports">
+                      <AdminReports />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/test-drives"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="test-drives">
+                      <AdminTestDrive />
+                    </AdminPageWrapper>
                   </Suspense>
                 </AdminRoute>
               }
@@ -276,8 +476,10 @@ function App() {
           </Routes>
         </CartProvider>
       </AuthProvider>
-    </Router>
-  );
+    </AppProvider>
+  </Router>
+</ReduxProvider>
+);
 }
 
 export default App;

@@ -1,18 +1,21 @@
 package org.example.controller;
 
-import jakarta.validation.Valid;
 import org.example.dto.request.LoginRequest;
 import org.example.dto.request.RegisterRequest;
-import org.example.dto.response.ApiResponse;
+import org.example.dto.request.ChangePasswordRequest;
+import org.example.dto.request.OAuthRequest;
 import org.example.dto.response.AuthResponse;
-import org.example.entity.User;
-import org.example.security.UserPrincipal;
+import org.example.dto.response.ApiResponse;
 import org.example.service.AuthService;
+import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -22,30 +25,196 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
-        return ResponseEntity.ok(ApiResponse.success("Đăng ký thành công", response));
-    }
-
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", response));
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest loginRequest) {
+        try {
+            AuthResponse authResponse = authService.login(loginRequest);
+            
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .message("Đăng nhập thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(false)
+                .message("Đăng nhập thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 
-    @GetMapping("/me")
-    public ResponseEntity<ApiResponse<User>> getCurrentUser() {
-        User user = authService.getCurrentUser();
-        return ResponseEntity.ok(ApiResponse.success(user));
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        try {
+            AuthResponse authResponse = authService.register(registerRequest);
+            
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .message("Đăng ký thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(false)
+                .message("Đăng ký thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 
-    @GetMapping("/check")
-    public ResponseEntity<ApiResponse<Boolean>> checkAuth() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        boolean isAuthenticated = authentication != null &&
-                                 authentication.isAuthenticated() &&
-                                 !(authentication.getPrincipal() instanceof String);
-        return ResponseEntity.ok(ApiResponse.success(isAuthenticated));
+    @PostMapping("/refresh")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        try {
+            AuthResponse authResponse = authService.refreshToken(userPrincipal.getId());
+            
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .message("Token làm mới thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(false)
+                .message("Làm mới token thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
     }
-}
+
+    @PostMapping("/oauth")
+    public ResponseEntity<ApiResponse<AuthResponse>> oauthLogin(@Valid @RequestBody OAuthRequest oauthRequest) {
+        try {
+            AuthResponse authResponse = authService.oauthLogin(oauthRequest);
+            
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .message("Đăng nhập OAuth thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(false)
+                .message("Đăng nhập OAuth thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<String>> changePassword(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
+        try {
+            ApiResponse<String> response = authService.changePassword(userPrincipal.getId(), changePasswordRequest);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(false)
+                .message("Đổi mật khẩu thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestParam String email) {
+        try {
+            ApiResponse<String> response = authService.forgotPassword(email);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(false)
+                .message("Gửi email reset thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetPassword(
+            @RequestParam String token,
+            @RequestParam String newPassword) {
+        try {
+            ApiResponse<String> response = authService.resetPassword(token, newPassword);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(false)
+                .message("Reset mật khẩu thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @PostMapping("/logout")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<String>> logout(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        try {
+            ApiResponse<String> response = authService.logout(userPrincipal.getId());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(false)
+                .message("Đăng xuất thất bại: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+                
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    // Endpoint to create admin user (for development/testing purposes)
+    @PostMapping("/create-admin")
+    public ResponseEntity<ApiResponse<AuthResponse>> createAdmin(
+            @RequestParam String email,
+            @RequestParam String password,
+            @RequestParam String fullName) {
+        try {
+            AuthResponse authResponse = authService.createAdminUser(email, password, fullName);
+
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .message("Admin user created successfully")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(false)
+                .message("Failed to create admin user: " + e.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+            return ResponseEntity.badRequest().body(response);
+        }
+    }}

@@ -14,4 +14,6 @@ public interface ReviewRepository extends MongoRepository<Review, String> {
     List<Review> findByCar(Car car);
 
     List<Review> findByUser(User user);
+
+    boolean existsByUserAndCar(User user, Car car);
 }

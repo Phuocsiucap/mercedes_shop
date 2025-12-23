@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -34,7 +35,7 @@ public class Car {
 
     private String description;
 
-    private String image;
+    private List<String> images;
 
     @DBRef
     private Category category;

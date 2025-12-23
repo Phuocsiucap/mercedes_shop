@@ -1,142 +1,222 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import adminService from '../../services/adminService';
 import { useAuth } from '../../context/AuthContext';
-import AdminCategories from './AdminCategories';
-import AdminCars from './AdminCars';
-import AdminOrders from './AdminOrders';
-import AdminUsers from './AdminUsers';
-import AdminHome from './AdminHome';
-import AdminReports from './AdminReports';
-import { FiLogOut, FiMenu } from 'react-icons/fi';
+import { useApp } from '../../context/AppContext';
 
-const AdminDashboard = () => {
-  const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const location = useLocation();
-  const [refreshKey, setRefreshKey] = useState(0);
+const LoadingSpinner = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600"></div>
+  </div>
+);
 
-  const handleLogout = () => {
-    if (window.confirm('Bạn chắc chắn muốn đăng xuất?')) {
-      logout();
+/**
+ * Get status color class for order status
+ */
+const getStatusColorClass = (status) => {
+  switch (status) {
+    case 'PENDING':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'DELIVERING':
+      return 'bg-blue-100 text-blue-800';
+    case 'COMPLETED':
+      return 'bg-green-100 text-green-800';
+    case 'CANCELLED':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+/**
+ * Dashboard Overview Component
+ * Displays summary statistics and recent orders
+ * Uses new adminService for data management
+ */
+const DashboardOverview = () => {
+  const { formatCurrency, formatDate } = useApp();
+  const [dashboard, setDashboard] = useState({
+    loading: false,
+    data: null,
+    error: null
+  });
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setDashboard(prev => ({ ...prev, loading: true, error: null }));
+      const response = await adminService.getDashboardStats();
+      setDashboard(prev => ({ 
+        ...prev, 
+        loading: false, 
+        data: response.data 
+      }));
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setDashboard(prev => ({ 
+        ...prev, 
+        loading: false, 
+        error: error.message || 'Failed to load dashboard data' 
+      }));
     }
   };
 
-  const isActive = (path) => {
-    return location.pathname === path;
+  const refresh = () => {
+    fetchDashboardData();
   };
 
-  // Trigger refresh when location changes
-  useEffect(() => {
-    setRefreshKey((prev) => prev + 1);
-  }, [location]);
+  if (dashboard?.loading && !dashboard?.data) {
+    return <LoadingSpinner />;
+  }
 
-  const menuItems = [
-    { path: '/admin', label: 'Tổng quan', icon: '📊' },
-    { path: '/admin/reports', label: 'Báo cáo', icon: '📈' },
-    { path: '/admin/categories', label: 'Danh mục', icon: '📁' },
-    { path: '/admin/cars', label: 'Ô tô', icon: '🚗' },
-    { path: '/admin/orders', label: 'Đơn hàng', icon: '📦' },
-    { path: '/admin/users', label: 'Người dùng', icon: '👥' },
-  ];
+  if (dashboard?.error && !dashboard?.data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="text-red-600 text-lg">⚠️ Lỗi tải dữ liệu</div>
+        <p className="text-gray-600">{dashboard.error}</p>
+        <button
+          onClick={refresh}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+
+  const stats = dashboard?.data || {};
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gray-900 text-white transition-all duration-300 overflow-y-auto flex flex-col`}
-      >
-        {/* Logo */}
-        <div className="p-6 flex items-center justify-between">
-          {sidebarOpen && <h1 className="text-2xl font-bold">Mercedes</h1>}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hover:bg-gray-800 p-2 rounded"
-          >
-            <FiMenu className="text-xl" />
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="mt-8 flex-1">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-4 px-6 py-3 transition-colors ${
-                isActive(item.path)
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              <span className="text-2xl">{item.icon}</span>
-              {sidebarOpen && <span>{item.label}</span>}
-            </Link>
-          ))}
-        </nav>
-
-        {/* User Info & Logout (đặt ở cuối, xếp dọc) */}
-        <div className="mt-auto border-t border-gray-800 p-4">
-          <div className={`flex flex-col items-start gap-3 ${!sidebarOpen ? 'items-center' : ''}`}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
-                {user?.fullName?.charAt(0).toUpperCase()}
-              </div>
-              {sidebarOpen && (
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm truncate">{user?.fullName}</p>
-                  <p className="text-xs text-gray-400">Admin</p>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200 text-sm font-semibold shadow-sm ${
-                !sidebarOpen ? 'justify-center' : ''
-              }`}
-            >
-              <FiLogOut className="text-base" />
-              {sidebarOpen && 'Đăng xuất'}
-            </button>
-          </div>
-        </div>
-
-        {/* Footer spacer (nếu cần) */}
-        <div className="mt-auto p-4">
-          {/* để trống hoặc thêm link nhỏ nếu muốn */}
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-800">Tổng Quan</h1>
+        <button
+          onClick={refresh}
+          className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+          disabled={dashboard?.loading}
+        >
+          {dashboard?.loading ? '🔄 Đang tải...' : '🔄 Làm mới'}
+        </button>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {/* Header */}
-        <header className="bg-white shadow-sm p-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-600">Xin chào, {user?.fullName}</span>
-            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center font-bold">
-              {user?.fullName?.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </header>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard
+          title="Tổng Người Dùng"
+          value={stats.totalUsers}
+          icon="👥"
+          color="blue"
+          growth={stats.usersGrowth}
+        />
 
-        {/* Page Content */}
-        <div className="p-6">
-          <Routes>
-            <Route path="/" element={<AdminHome key={refreshKey} />} />
-            <Route path="/reports" element={<AdminReports />} />
-            <Route path="/categories" element={<AdminCategories />} />
-            <Route path="/cars" element={<AdminCars />} />
-            <Route path="/orders" element={<AdminOrders />} />
-            <Route path="/users" element={<AdminUsers />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
-          </Routes>
+        <StatCard
+          title="Tổng Ô Tô"
+          value={stats.totalCars}
+          icon="🚗"
+          color="green"
+        />
+
+        <StatCard
+          title="Tổng Đơn Hàng"
+          value={stats.totalOrders}
+          icon="📦"
+          color="purple"
+          growth={stats.ordersGrowth}
+        />
+
+        <StatCard
+          title="Tổng Doanh Thu"
+          value={formatCurrency(stats.totalRevenue)}
+          icon="💰"
+          color="red"
+          growth={stats.revenueGrowth}
+        />
+      </div>
+
+      {/* Recent Orders */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Đơn Hàng Gần Đây</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khách Hàng</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày Đặt</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tổng Tiền</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {stats.recentOrders && stats.recentOrders.length > 0 ? (
+                stats.recentOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">#{order.id.slice(0, 8)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{order.userName}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {formatDate(order.orderDate)}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                      {formatCurrency(order.totalAmount)}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColorClass(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                    Chưa có đơn hàng nào
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
+};
+
+/**
+ * Reusable stat card component
+ */
+const StatCard = ({ title, value, icon, color, growth }) => {
+  const colorClasses = {
+    blue: 'text-blue-600',
+    green: 'text-green-600',
+    purple: 'text-purple-600',
+    red: 'text-red-600',
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-gray-600 text-sm">{title}</p>
+          <p className="text-3xl font-bold text-gray-800 mt-2">{value}</p>
+          {growth !== undefined && growth !== null && (
+            <p className={`text-xs mt-1 ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {growth >= 0 ? '↑' : '↓'} {Math.abs(growth).toFixed(2)}%
+            </p>
+          )}
+        </div>
+        <div className={`text-4xl ${colorClasses[color]}`}>{icon}</div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Main AdminDashboard Component with AdminLayout
+ */
+const AdminDashboard = () => {
+  return <DashboardOverview />;
 };
 
 export default AdminDashboard;

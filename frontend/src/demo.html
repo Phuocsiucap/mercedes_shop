@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sliding Login/Register 3D</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #050505;
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            perspective: 1000px; /* Quan trọng cho hiệu ứng 3D */
+        }
+
+        /* Container chính */
+        .container {
+            background-color: #111;
+            border-radius: 10px;
+            box-shadow: 0 0 20px #00f7ff, 0 0 5px #00f7ff inset;
+            border: 1px solid #00f7ff;
+            position: relative;
+            overflow: hidden;
+            width: 800px;
+            max-width: 100%;
+            min-height: 500px;
+            transform-style: preserve-3d;
+            transition: transform 0.1s;
+        }
+
+        /* Phần Form (Login/Register) nằm bên dưới */
+        .form-container {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            transition: all 0.6s ease-in-out;
+        }
+
+        .sign-in-container {
+            left: 0;
+            width: 50%;
+            z-index: 2;
+        }
+
+        .sign-up-container {
+            left: 0;
+            width: 50%;
+            opacity: 0;
+            z-index: 1;
+        }
+
+        .container.right-panel-active .sign-in-container {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        .container.right-panel-active .sign-up-container {
+            transform: translateX(100%);
+            opacity: 1;
+            z-index: 5;
+            animation: show 0.6s;
+        }
+
+        @keyframes show {
+            0%, 49.99% {
+                opacity: 0;
+                z-index: 1;
+            }
+            50%, 100% {
+                opacity: 1;
+                z-index: 5;
+            }
+        }
+
+        form {
+            background-color: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 0 50px;
+            height: 100%;
+            text-align: center;
+            color: #fff;
+        }
+
+        .title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 2rem;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+
+        /* Input Styles */
+        .input-field {
+            background-color: transparent;
+            border-bottom: 1px solid #555;
+            margin: 8px 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-field i {
+            color: #acacac;
+            margin-right: 10px;
+            font-size: 1.1rem;
+        }
+
+        .input-field input {
+            background: none;
+            border: none;
+            outline: none;
+            padding: 12px 15px;
+            color: #fff;
+            width: 100%;
+            font-size: 1rem;
+        }
+
+        /* Button Styles */
+        button {
+            border-radius: 20px;
+            border: 1px solid #00d2ff;
+            background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 12px 45px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: transform 80ms ease-in;
+            margin-top: 20px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.6);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button:focus {
+            outline: none;
+        }
+
+        button.ghost {
+            background: transparent;
+            border-color: #ffffff;
+            box-shadow: none;
+        }
+
+        /* --- PHẦN QUAN TRỌNG: Overlay Container (Phần màu xanh di chuyển) --- */
+        /* Đây là phần chứa Text Welcome, nó sẽ trượt đè lên form */
+        
+        .overlay-container {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
+            transition: transform 0.6s ease-in-out;
+            z-index: 100;
+        }
+
+        .container.right-panel-active .overlay-container {
+            transform: translateX(-100%);
+        }
+
+        .overlay {
+            background: linear-gradient(to right, #00f7ff, #04befe);
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: 0 0;
+            color: #ffffff;
+            position: relative;
+            left: -100%;
+            height: 100%;
+            width: 200%;
+            transform: translateX(0);
+            transition: transform 0.6s ease-in-out;
+        }
+        
+        /* Hiệu ứng đường chéo/cong ở giữa */
+        .overlay::before {
+             content: "";
+             position: absolute;
+             left: 0;
+             right: 0;
+             top: 0;
+             bottom: 0;
+             background: inherit;
+             /* Tạo hình dáng đường chéo giống video */
+             clip-path: polygon(0 0, 100% 0, 100% 100%, 15% 100%); 
+        }
+
+        .container.right-panel-active .overlay {
+            transform: translateX(50%);
+        }
+
+        .overlay-panel {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 0 40px;
+            text-align: center;
+            top: 0;
+            height: 100%;
+            width: 50%;
+            transform: translateX(0);
+            transition: transform 0.6s ease-in-out;
+        }
+
+        .overlay-left {
+            transform: translateX(-20%);
+        }
+
+        .container.right-panel-active .overlay-left {
+            transform: translateX(0);
+        }
+
+        .overlay-right {
+            right: 0;
+            transform: translateX(0);
+        }
+
+        .container.right-panel-active .overlay-right {
+            transform: translateX(20%);
+        }
+
+        .overlay-panel h1 {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 2.2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .overlay-panel p {
+            font-size: 14px;
+            font-weight: 300;
+            line-height: 20px;
+            letter-spacing: 0.5px;
+            margin: 20px 0 30px;
+        }
+
+    </style>
+    <script src="https://kit.fontawesome.com/64d58efce2.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div class="container" id="container">
+    <div class="form-container sign-up-container">
+        <form action="#">
+            <h1 class="title">Create Account</h1>
+            <div class="input-field">
+                <i class="fas fa-user"></i>
+                <input type="text" placeholder="Name" />
+            </div>
+            <div class="input-field">
+                <i class="fas fa-envelope"></i>
+                <input type="email" placeholder="Email" />
+            </div>
+            <div class="input-field">
+                <i class="fas fa-lock"></i>
+                <input type="password" placeholder="Password" />
+            </div>
+            <button>Register</button>
+        </form>
+    </div>
+
+    <div class="form-container sign-in-container">
+        <form action="#">
+            <h1 class="title">Sign in</h1>
+            <div class="input-field">
+                <i class="fas fa-user"></i>
+                <input type="email" placeholder="Email" />
+            </div>
+            <div class="input-field">
+                <i class="fas fa-lock"></i>
+                <input type="password" placeholder="Password" />
+            </div>
+            <a href="#" style="color: #fff; margin: 10px 0; font-size: 12px; text-decoration: none;">Forgot your password?</a>
+            <button>Log In</button>
+        </form>
+    </div>
+
+    <div class="overlay-container">
+        <div class="overlay">
+            <div class="overlay-panel overlay-left">
+                <h1>Welcome Back!</h1>
+                <p>To keep connected with us please login with your personal info</p>
+                <button class="ghost" id="signIn">Sign In</button>
+            </div>
+            
+            <div class="overlay-panel overlay-right">
+                <h1>Hello, Friend!</h1>
+                <p>Enter your personal details and start journey with us</p>
+                <button class="ghost" id="signUp">Sign Up</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Logic chuyển đổi
+    const signUpButton = document.getElementById('signUp');
+    const signInButton = document.getElementById('signIn');
+    const container = document.getElementById('container');
+
+    signUpButton.addEventListener('click', () => {
+        container.classList.add("right-panel-active");
+    });
+
+    signInButton.addEventListener('click', () => {
+        container.classList.remove("right-panel-active");
+    });
+
+    // Logic hiệu ứng 3D nghiêng theo chuột
+    const body = document.querySelector("body");
+    
+    document.addEventListener("mousemove", (e) => {
+        // Tính toán góc nghiêng dựa trên vị trí chuột
+        // window.innerWidth / 2 là tâm màn hình
+        let xAxis = (window.innerWidth / 2 - e.pageX) / 25; 
+        let yAxis = (window.innerHeight / 2 - e.pageY) / 25;
+
+        // Áp dụng xoay
+        container.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+    });
+
+    // Reset về vị trí cân bằng khi chuột ra khỏi màn hình
+    document.addEventListener("mouseleave", () => {
+         container.style.transform = `rotateY(0deg) rotateX(0deg)`;
+         container.style.transition = 'all 0.5s ease';
+    });
+    
+    document.addEventListener("mouseenter", () => {
+         container.style.transition = 'none'; // Bỏ transition khi chuột vào để di chuyển mượt mà không bị trễ
+    });
+
+</script>
+
+</body>
+</html>
