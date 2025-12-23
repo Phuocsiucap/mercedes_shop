@@ -28,17 +28,17 @@ const ImageUploader = ({
   const [showUrlInput, setShowUrlInput] = useState(true); // Hiển thị mặc định
   const fileInputRef = useRef(null);
 
-  // Update urlInput when initialUrlInput changes and auto-load images
+  // Update urlInput when initialUrlInput changes
   useEffect(() => {
-    if (initialUrlInput !== urlInput) {
+    if (initialUrlInput && initialUrlInput !== urlInput) {
       setUrlInput(initialUrlInput);
       
-      // Auto-load images from URLs if they're not already loaded
-      if (initialUrlInput && initialUrlInput.trim()) {
+      // Auto-load images from URLs
+      if (initialUrlInput.trim()) {
         const urls = initialUrlInput.split(',').map(url => url.trim()).filter(url => url);
         
         if (urls.length > 0) {
-          // Validate URLs and add them directly to images
+          // Simple validation and direct assignment
           const validUrls = urls.filter(url => {
             try {
               new URL(url);
@@ -48,16 +48,13 @@ const ImageUploader = ({
             }
           });
           
-          if (validUrls.length > 0 && JSON.stringify(validUrls) !== JSON.stringify(images)) {
+          if (validUrls.length > 0) {
             onImagesChange(validUrls);
           }
         }
-      } else if (!initialUrlInput && images.length > 0) {
-        // Clear images if no URL provided
-        onImagesChange([]);
       }
     }
-  }, [initialUrlInput]);
+  }, [initialUrlInput, urlInput, onImagesChange]);
 
   // Handle file selection
   const handleFileSelect = async (e) => {
@@ -162,24 +159,15 @@ const ImageUploader = ({
     const value = e.target.value;
     setUrlInput(value);
     
-    // Auto-preview URLs as user types
+    // Simple auto-preview: just add URLs directly without complex validation
     if (value.trim()) {
       const urls = value.split(',').map(url => url.trim()).filter(url => url);
       
+      // Basic URL validation
       const validUrls = urls.filter(url => {
         try {
           new URL(url);
-          // Less strict validation - accept any URL that looks like it could be an image
-          const isImageUrl = url.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) || 
-                 url.includes('imgur') || 
-                 url.includes('cloudinary') ||
-                 url.includes('unsplash') ||
-                 url.includes('pexels') ||
-                 url.includes('images') ||
-                 url.includes('photo') ||
-                 url.includes('pic') ||
-                 url.startsWith('https://') || url.startsWith('http://'); // Accept any https/http URL
-          return isImageUrl;
+          return true;
         } catch {
           return false;
         }
@@ -188,8 +176,6 @@ const ImageUploader = ({
       if (validUrls.length > 0 && validUrls.length <= maxImages) {
         onImagesChange(validUrls);
         setError(null);
-      } else if (validUrls.length === 0 && urls.length > 0) {
-        setError('URL không được nhận diện là ảnh. Vui lòng kiểm tra lại.');
       }
     } else {
       // Clear images if URL input is empty
@@ -241,6 +227,9 @@ const ImageUploader = ({
       {/* Current Images Preview */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2">
+          <div className="w-full text-xs text-gray-500 mb-2">
+            Debug: {images.length} ảnh - {JSON.stringify(images.slice(0, 2))}
+          </div>
           {images.map((url, index) => (
             <div key={index} className="relative group">
               <img
@@ -248,6 +237,7 @@ const ImageUploader = ({
                 alt={`Ảnh ${index + 1}`}
                 className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
                 onError={(e) => {
+                  console.log('Image load error:', url);
                   e.target.src = 'data:image/svg+xml;base64,' + btoa(`
                     <svg width="96" height="96" xmlns="http://www.w3.org/2000/svg">
                       <rect width="100%" height="100%" fill="#f3f4f6"/>
@@ -255,6 +245,7 @@ const ImageUploader = ({
                     </svg>
                   `);
                 }}
+                onLoad={() => console.log('Image loaded successfully:', url)}
               />
               <button
                 type="button"
@@ -355,6 +346,21 @@ const ImageUploader = ({
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
           >
             {uploading ? <FaSpinner className="animate-spin" /> : <><FaLink /> Thêm</>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // Simple direct add for testing
+              if (urlInput.trim()) {
+                const urls = urlInput.split(',').map(url => url.trim()).filter(url => url);
+                onImagesChange([...images, ...urls]);
+                setUrlInput('');
+              }
+            }}
+            disabled={!urlInput.trim()}
+            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+          >
+            Test
           </button>
         </div>
       )}
