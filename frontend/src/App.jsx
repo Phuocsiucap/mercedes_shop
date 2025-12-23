@@ -13,12 +13,12 @@ import { useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
 import AdminLayout from "./components/layouts/AdminLayout";
-import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 
 // Lazy load other pages
 import { lazy, Suspense } from "react";
 
+const HomePage = lazy(() => import("./pages/HomePage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const CarsPage = lazy(() => import("./pages/CarsPage"));
 const CarDetailPage = lazy(() => import("./pages/CarDetailPage"));
@@ -191,7 +191,9 @@ function App() {
               path="/"
               element={
                 <Layout>
-                  <HomePage />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <HomePage />
+                  </Suspense>
                 </Layout>
               }
             />

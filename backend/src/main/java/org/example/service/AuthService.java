@@ -306,7 +306,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         // Generate JWT token
-        String jwt = tokenProvider.generateTokenFromUserId(savedUser.getId());
+        String jwt = tokenProvider.generateTokenFromUser(savedUser);
 
         return new AuthResponse(
             jwt,

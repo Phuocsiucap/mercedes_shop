@@ -3,13 +3,19 @@ import { Link } from 'react-router-dom';
 import carService from '../services/carService';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import { FaFire } from 'react-icons/fa'; // Import icon lửa cho phần Hot
 
 const HomePage = () => {
   const { user } = useAuth();
   const { formatCurrency } = useApp();
   
+  // State cũ
   const [featuredCars, setFeaturedCars] = useState([]);
   const [categories, setCategories] = useState([]);
+  
+  // [MỚI] State cho Top xe bán chạy
+  const [topSellingCars, setTopSellingCars] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -20,13 +26,20 @@ const HomePage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [carsResponse, categoriesResponse] = await Promise.all([
+      // Gọi song song 3 API: Featured, Categories, và TopSelling
+      const [carsResponse, categoriesResponse, topSellingResponse] = await Promise.all([
         carService.getFeaturedCars(),
-        carService.getAllCategories()
+        carService.getAllCategories(),
+        carService.getTopSellingCars() // [MỚI] Gọi hàm này
       ]);
 
       setFeaturedCars(carsResponse.data || []);
       setCategories(categoriesResponse.data || []);
+      
+      // [MỚI] Xử lý dữ liệu Top Selling (hỗ trợ cả dạng trang .content hoặc mảng thường)
+      const topSellingData = topSellingResponse.data?.content || topSellingResponse.data || [];
+      setTopSellingCars(topSellingData);
+
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
@@ -131,7 +144,7 @@ const HomePage = () => {
                         }}
                       />
                     ) : null}
-                    {/* Fallback placeholder - shown when no image or image fails to load */}
+                    {/* Fallback placeholder */}
                     <div 
                       className={`w-full h-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200 ${category.image ? 'hidden' : 'flex'}`}
                     >
@@ -167,7 +180,74 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* Featured Cars Section */}
+      {/* --- [PHẦN MỚI] Top Xe Đang Bán Chạy Nhất --- */}
+      {topSellingCars.length > 0 && (
+        <section className="py-16 bg-blue-50">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold text-gray-900 flex items-center justify-center gap-2">
+                    <FaFire className="text-orange-500" /> Top Xe Đang Bán Chạy Nhất
+                </h2>
+                <p className="text-gray-600 mt-2">Những mẫu xe được khách hàng yêu thích và lựa chọn nhiều nhất.</p>
+            </div>
+
+            {/* Grid hiển thị đúng 4 xe */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {topSellingCars.slice(0, 4).map((car, index) => ( // .slice(0, 4) để chỉ lấy 4 xe
+                <Link
+                  key={car.id}
+                  to={`/cars/${car.id}`}
+                  className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-2xl transition duration-300 transform hover:-translate-y-2 relative group"
+                >
+                  {/* Badge Thứ Hạng */}
+                  <div className="absolute top-0 left-0 bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold px-4 py-1 rounded-br-2xl z-20 shadow-md">
+                    #{index + 1} Best Seller
+                  </div>
+
+                  <div className="relative h-56 bg-gray-200 overflow-hidden">
+                    <img
+                      src={car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg'}
+                      alt={car.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="400" height="256" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="32" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
+                    {/* Hot Deal Badge */}
+                    <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded text-xs font-bold text-orange-600 shadow-sm">
+                        Hot Deal
+                    </div>
+                  </div>
+
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-800 mb-1 truncate" title={car.name}>
+                      {car.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">{car.category?.name || 'Sedan'} • {car.manufactureYear}</p>
+                    
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <span className="text-xl font-extrabold text-blue-600">
+                        {formatPrice(car.price)}
+                      </span>
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-blue-600 hover:text-white transition">
+                        Chi tiết
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+      {/* ---------------------------------------------- */}
+
+      {/* Featured Cars Section (Xe Nổi Bật - Giữ nguyên) */}
       <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Xe Nổi Bật</h2>

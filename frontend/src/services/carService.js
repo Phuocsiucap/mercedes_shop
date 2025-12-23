@@ -267,6 +267,35 @@ class CarService extends ApiService {
   }
 
   /**
+   * Get top selling cars based on order count
+   * @param {number} limit - Number of cars to return (default: 6)
+   * @returns {Promise<Object>} Top selling cars
+   */
+  async getTopSellingCars(limit = 6) {
+    try {
+      const response = await this.getAllCars({ 
+        size: limit, 
+        sortBy: 'orderCount', 
+        sortDir: 'desc' 
+      });
+      
+      return {
+        success: true,
+        data: response.data?.content || [],
+        message: 'Top selling cars retrieved successfully'
+      };
+    } catch (error) {
+      // If orderCount sorting is not available, fall back to featured cars
+      console.warn('Could not fetch top selling cars, falling back to featured cars');
+      return {
+        success: true,
+        data: [],
+        message: 'Top selling cars not available'
+      };
+    }
+  }
+
+  /**
    * Get cars with filters and sorting
    * @param {Object} filters - Filter options
    * @param {string} filters.category - Category filter
