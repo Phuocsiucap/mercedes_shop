@@ -23,14 +23,19 @@ const AdminLayout = ({ children, activeTab, onTabChange }) => {
   ];
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    // 1. Thay đổi 'min-h-screen' thành 'h-screen' và thêm 'overflow-hidden'
+    // Điều này giúp toàn bộ khung ứng dụng không bị cuộn, chỉ khớp với chiều cao màn hình
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      
       {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gray-900 text-white transition-all duration-300 flex flex-col fixed md:relative h-full md:h-auto z-50 md:z-auto`}
+        // 2. Xóa 'md:h-auto' để sidebar luôn full chiều cao
+        // Sidebar vẫn giữ 'fixed' trên mobile và 'relative' trên desktop
+        } bg-gray-900 text-white transition-all duration-300 flex flex-col fixed md:relative h-full z-50`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
           {sidebarOpen && (
             <h2 className="text-xl font-bold text-blue-400">Admin Panel</h2>
           )}
@@ -43,7 +48,8 @@ const AdminLayout = ({ children, activeTab, onTabChange }) => {
           </button>
         </div>
 
-        <nav className="flex-1 py-4">
+        {/* Thêm overflow-y-auto cho nav để nếu menu quá dài thì menu sẽ cuộn riêng */}
+        <nav className="flex-1 py-4 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -65,7 +71,7 @@ const AdminLayout = ({ children, activeTab, onTabChange }) => {
         </nav>
 
         {sidebarOpen && (
-          <div className="p-4 border-t border-gray-700 text-center text-gray-500 text-sm">
+          <div className="p-4 border-t border-gray-700 text-center text-gray-500 text-sm flex-shrink-0">
             Mercedes Shop Admin
           </div>
         )}
@@ -80,7 +86,9 @@ const AdminLayout = ({ children, activeTab, onTabChange }) => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-6 overflow-auto md:ml-0">
+      {/* 3. Thêm 'overflow-y-auto' và 'h-full' */}
+      {/* Điều này tạo thanh cuộn riêng cho nội dung chính, giữ Sidebar đứng yên */}
+      <main className="flex-1 p-6 overflow-y-auto h-full bg-gray-100 md:ml-0 relative w-full">
         {children}
       </main>
     </div>
