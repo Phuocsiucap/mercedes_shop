@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Repository
-public interface CarRepository extends MongoRepository<Car, String> {
+public interface CarRepository extends MongoRepository<Car, String>,CarRepositoryCustom {
 
     Page<Car> findByCategory(Category category, Pageable pageable);
 

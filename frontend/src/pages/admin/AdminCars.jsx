@@ -26,7 +26,14 @@ const AdminCars = () => {
   const [error, setError] = useState(null);
   const [selectedCar, setSelectedCar] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState({
+    keyword: '',
+    categoryId: '',
+    minPrice: '',
+    maxPrice: '',
+    year: '',
+    color: '',
+  });
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [sortBy, setSortBy] = useState('createdAt');
@@ -41,20 +48,22 @@ const AdminCars = () => {
     try {
       setCars(prev => ({ ...prev, loading: true, error: null }));
       
-      // Sử dụng advancedSearch nếu có filter, ngược lại dùng getAllCars
-      const hasFilters = filters.keyword || filters.categoryId || filters.minPrice || filters.maxPrice || filters.year || filters.color;
-      
       const params = {
         page,
         size,
         sortBy,
         sortDir: sortDir.toLowerCase(),
-        ...filters
+        ...(filters.keyword && { keyword: filters.keyword }),
+        ...(filters.categoryId && { categoryId: filters.categoryId }),
+        ...(filters.minPrice && { minPrice: filters.minPrice }),
+        ...(filters.maxPrice && { maxPrice: filters.maxPrice }),
+        ...(filters.year && { year: filters.year }),
+        ...(filters.color && { color: filters.color }),
       };
+
+      console.log('Admin fetching cars with params:', params);
       
-      const response = hasFilters 
-        ? await carService.advancedSearch(params)
-        : await carService.getAllCars(params);
+      const response = await carService.getFilteredAndSortedCars(params);
         
       setCars(prev => ({
         ...prev,
@@ -158,6 +167,23 @@ const AdminCars = () => {
     }
   };
 
+  const handleFilterChange = (name, value) => {
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setPage(0); // Reset to first page when filter changes
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      keyword: '',
+      categoryId: '',
+      minPrice: '',
+      maxPrice: '',
+      year: '',
+      color: '',
+    });
+    setPage(0);
+  };
+
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortDir(sortDir === 'ASC' ? 'DESC' : 'ASC');
@@ -170,6 +196,7 @@ const AdminCars = () => {
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleEdit = (car) => {
@@ -234,74 +261,111 @@ const AdminCars = () => {
       </div>
 
       {/* Filter Component */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên xe..."
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={filters.keyword || ''}
-            onChange={(e) => setFilters(prev => ({ ...prev, keyword: e.target.value || undefined }))}
-            onKeyDown={(e) => e.key === 'Enter' && setPage(0)}
-          />
-          <select
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={filters.categoryId || ''}
-            onChange={(e) => {
-              setFilters(prev => ({ ...prev, categoryId: e.target.value || undefined }));
-              setPage(0);
-            }}
-          >
-            <option value="">Tất cả danh mục</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            placeholder="Giá từ..."
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={filters.minPrice || ''}
-            onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value ? Number(e.target.value) : undefined }))}
-          />
-          <input
-            type="number"
-            placeholder="Giá đến..."
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={filters.maxPrice || ''}
-            onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value ? Number(e.target.value) : undefined }))}
-          />
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Bộ lọc tìm kiếm</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+          {/* Search */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tìm kiếm
+            </label>
+            <input
+              type="text"
+              placeholder="Tên xe..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.keyword}
+              onChange={(e) => handleFilterChange('keyword', e.target.value)}
+            />
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Danh mục
+            </label>
+            <select
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.categoryId}
+              onChange={(e) => handleFilterChange('categoryId', e.target.value)}
+            >
+              <option value="">Tất cả danh mục</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Năm sản xuất
+            </label>
+            <input
+              type="number"
+              placeholder="2024"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.year}
+              onChange={(e) => handleFilterChange('year', e.target.value)}
+            />
+          </div>
         </div>
-        <div className="flex gap-4 mt-4 items-center">
-          <input
-            type="number"
-            placeholder="Năm sản xuất..."
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
-            value={filters.year || ''}
-            onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value ? Number(e.target.value) : undefined }))}
-          />
-          <input
-            type="text"
-            placeholder="Màu sắc..."
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
-            value={filters.color || ''}
-            onChange={(e) => setFilters(prev => ({ ...prev, color: e.target.value || undefined }))}
-          />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+          {/* Min Price */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Giá từ (VNĐ)
+            </label>
+            <input
+              type="number"
+              placeholder="Từ"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.minPrice}
+              onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+            />
+          </div>
+
+          {/* Max Price */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Giá đến (VNĐ)
+            </label>
+            <input
+              type="number"
+              placeholder="Đến"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.maxPrice}
+              onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+            />
+          </div>
+
+          {/* Color */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Màu sắc
+            </label>
+            <input
+              type="text"
+              placeholder="Đen, Trắng..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.color}
+              onChange={(e) => handleFilterChange('color', e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
           <button
-            onClick={() => setPage(0)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold"
-          >
-            Tìm kiếm
-          </button>
-          <button
-            onClick={() => {
-              setFilters({});
-              setPage(0);
-            }}
-            className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition font-semibold"
+            onClick={clearFilters}
+            className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition font-semibold"
           >
             Xóa bộ lọc
           </button>
+          <div className="text-sm text-gray-600 flex items-center">
+            Tìm thấy {cars.totalElements} kết quả
+          </div>
         </div>
       </div>
 
@@ -520,15 +584,6 @@ const AdminCars = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {/* Backend trả về Page<AdminCarResponse> với structure:
-                    {
-                      content: [...],
-                      totalElements: number,
-                      totalPages: number,
-                      number: number (current page),
-                      size: number
-                    }
-                */}
                 {(cars?.content || []).map((car) => (
                   <tr key={car.id} className="hover:bg-blue-50 transition">
                     <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
@@ -590,33 +645,38 @@ const AdminCars = () => {
         )}
       </div>
 
-      {/* Pagination - Simplified */}
+      {/* Pagination - Like CarsPage */}
       {cars.totalPages > 1 && (
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">
-              Hiển thị {cars.content.length} / {cars.totalElements} kết quả
-            </span>
-            <div className="flex gap-2">
+        <div className="flex justify-center items-center space-x-2 mt-8">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 0}
+            className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            ← Trước
+          </button>
+          <div className="flex space-x-2">
+            {[...Array(cars.totalPages)].map((_, index) => (
               <button
-                onClick={() => handlePageChange(Math.max(0, page - 1))}
-                disabled={page === 0}
-                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
+                key={index}
+                onClick={() => handlePageChange(index)}
+                className={`px-4 py-2 rounded-lg ${
+                  page === index
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border border-gray-300 hover:bg-gray-50'
+                }`}
               >
-                Trước
+                {index + 1}
               </button>
-              <span className="px-3 py-1 bg-blue-600 text-white rounded">
-                {page + 1} / {cars.totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(Math.min(cars.totalPages - 1, page + 1))}
-                disabled={page >= cars.totalPages - 1}
-                className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
-              >
-                Sau
-              </button>
-            </div>
+            ))}
           </div>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= cars.totalPages - 1}
+            className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Sau →
+          </button>
         </div>
       )}
 
