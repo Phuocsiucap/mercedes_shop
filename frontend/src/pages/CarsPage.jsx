@@ -52,17 +52,19 @@ const CarsPage = () => {
   const fetchCars = async () => {
     try {
       setLoading(true);
-      const params = {
-        page: pagination.currentPage,
-        size: pagination.size,
-        sortBy: filters.sortBy,
-        sortDir: filters.sortDir,
-        ...(filters.keyword && { keyword: filters.keyword }),
-        ...(filters.categoryId && { categoryId: filters.categoryId }),
-        ...(filters.minPrice && { minPrice: filters.minPrice }),
-        ...(filters.maxPrice && { maxPrice: filters.maxPrice }),
-        ...(filters.year && { year: filters.year }),
-        ...(filters.color && { color: filters.color }),
+    const params = {
+      page: pagination.currentPage,
+      size: pagination.size,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+      ...(filters.keyword && { keyword: filters.keyword }),
+      ...(filters.categoryId && { categoryId: filters.categoryId }),
+      // QUAN TRỌNG: Ép kiểu sang Number trước khi gửi đi
+      ...(filters.minPrice && { minPrice: Number(filters.minPrice) }),
+      ...(filters.maxPrice && { maxPrice: Number(filters.maxPrice) }),
+      ...(filters.year && { year: Number(filters.year) }),
+      ...(filters.color && { color: filters.color }),
+    
       };
 
       const response = await carService.getFilteredAndSortedCars(params);
