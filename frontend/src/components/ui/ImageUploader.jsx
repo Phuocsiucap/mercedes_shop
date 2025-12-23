@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FaUpload, FaLink, FaTimes, FaSpinner } from 'react-icons/fa';
 import uploadService from '../../services/uploadService';
 
@@ -18,14 +18,43 @@ const ImageUploader = ({
   onImagesChange, 
   folder = 'general',
   multiple = true,
-  maxImages = 10 
+  maxImages = 10,
+  initialUrlInput = '' // Thêm prop để set URL ban đầu
 }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState(null);
-  const [urlInput, setUrlInput] = useState('');
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState(initialUrlInput);
+  const [showUrlInput, setShowUrlInput] = useState(true); // Hiển thị mặc định
   const fileInputRef = useRef(null);
+
+  // Update urlInput when initialUrlInput changes
+  useEffect(() => {
+    if (initialUrlInput && initialUrlInput !== urlInput) {
+      setUrlInput(initialUrlInput);
+      
+      // Auto-load images from URLs
+      if (initialUrlInput.trim()) {
+        const urls = initialUrlInput.split(',').map(url => url.trim()).filter(url => url);
+        
+        if (urls.length > 0) {
+          // Simple validation and direct assignment
+          const validUrls = urls.filter(url => {
+            try {
+              new URL(url);
+              return true;
+            } catch {
+              return false;
+            }
+          });
+          
+          if (validUrls.length > 0) {
+            onImagesChange(validUrls);
+          }
+        }
+      }
+    }
+  }, [initialUrlInput, urlInput, onImagesChange]);
 
   // Handle file selection
   const handleFileSelect = async (e) => {
@@ -67,25 +96,35 @@ const ImageUploader = ({
     }
   };
 
-  // Handle URL upload
+  // Handle URL upload - support multiple URLs separated by comma
   const handleUrlUpload = async () => {
-    const url = urlInput.trim();
-    if (!url) {
+    const urls = urlInput.trim();
+    if (!urls) {
       setError('Vui lòng nhập URL ảnh');
       return;
     }
 
+    // Split by comma and clean up URLs
+    const urlList = urls.split(',').map(url => url.trim()).filter(url => url);
+    
     // Check max images limit
-    if (images.length >= maxImages) {
+    if (images.length + urlList.length > maxImages) {
       setError(`Chỉ được upload tối đa ${maxImages} ảnh`);
       return;
     }
 
-    // Basic URL validation
-    try {
-      new URL(url);
-    } catch {
-      setError('URL không hợp lệ');
+    // Validate URLs
+    const invalidUrls = [];
+    for (const url of urlList) {
+      try {
+        new URL(url);
+      } catch {
+        invalidUrls.push(url);
+      }
+    }
+
+    if (invalidUrls.length > 0) {
+      setError(`URL không hợp lệ: ${invalidUrls.slice(0, 2).join(', ')}`);
       return;
     }
 
@@ -93,14 +132,54 @@ const ImageUploader = ({
     setUploading(true);
 
     try {
-      const cloudinaryUrl = await uploadService.uploadFromUrl(url, folder);
-      onImagesChange([...images, cloudinaryUrl]);
+      const cloudinaryUrls = [];
+      for (const url of urlList) {
+        try {
+          const cloudinaryUrl = await uploadService.uploadFromUrl(url, folder);
+          cloudinaryUrls.push(cloudinaryUrl);
+        } catch (err) {
+          // If upload fails, use original URL
+          console.warn(`Failed to upload ${url} to Cloudinary, using original URL:`, err);
+          cloudinaryUrls.push(url);
+        }
+      }
+      
+      onImagesChange([...images, ...cloudinaryUrls]);
       setUrlInput('');
       setShowUrlInput(false);
     } catch (err) {
       setError(err.message || 'Upload từ URL thất bại');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Handle URL input change with auto-preview
+  const handleUrlInputChange = (e) => {
+    const value = e.target.value;
+    setUrlInput(value);
+    
+    // Simple auto-preview: just add URLs directly without complex validation
+    if (value.trim()) {
+      const urls = value.split(',').map(url => url.trim()).filter(url => url);
+      
+      // Basic URL validation
+      const validUrls = urls.filter(url => {
+        try {
+          new URL(url);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      
+      if (validUrls.length > 0 && validUrls.length <= maxImages) {
+        onImagesChange(validUrls);
+        setError(null);
+      }
+    } else {
+      // Clear images if URL input is empty
+      onImagesChange([]);
     }
   };
 
@@ -148,6 +227,9 @@ const ImageUploader = ({
       {/* Current Images Preview */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2">
+          <div className="w-full text-xs text-gray-500 mb-2">
+            Debug: {images.length} ảnh - {JSON.stringify(images.slice(0, 2))}
+          </div>
           {images.map((url, index) => (
             <div key={index} className="relative group">
               <img
@@ -155,6 +237,7 @@ const ImageUploader = ({
                 alt={`Ảnh ${index + 1}`}
                 className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
                 onError={(e) => {
+                  console.log('Image load error:', url);
                   e.target.src = 'data:image/svg+xml;base64,' + btoa(`
                     <svg width="96" height="96" xmlns="http://www.w3.org/2000/svg">
                       <rect width="100%" height="100%" fill="#f3f4f6"/>
@@ -162,6 +245,7 @@ const ImageUploader = ({
                     </svg>
                   `);
                 }}
+                onLoad={() => console.log('Image loaded successfully:', url)}
               />
               <button
                 type="button"
@@ -244,8 +328,8 @@ const ImageUploader = ({
           <input
             type="url"
             value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Nhập URL ảnh (https://...)"
+            onChange={handleUrlInputChange}
+            placeholder="Nhập URL ảnh (nhiều URL cách nhau bằng dấu phẩy)"
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={uploading}
             onKeyDown={(e) => {
@@ -259,9 +343,24 @@ const ImageUploader = ({
             type="button"
             onClick={handleUrlUpload}
             disabled={uploading || !urlInput.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
           >
-            {uploading ? <FaSpinner className="animate-spin" /> : 'Thêm'}
+            {uploading ? <FaSpinner className="animate-spin" /> : <><FaLink /> Thêm</>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // Simple direct add for testing
+              if (urlInput.trim()) {
+                const urls = urlInput.split(',').map(url => url.trim()).filter(url => url);
+                onImagesChange([...images, ...urls]);
+                setUrlInput('');
+              }
+            }}
+            disabled={!urlInput.trim()}
+            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+          >
+            Test
           </button>
         </div>
       )}

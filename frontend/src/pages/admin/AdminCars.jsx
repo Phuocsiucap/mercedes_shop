@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FaEdit, FaTrash, FaPlus, FaSort, FaSortUp, FaSortDown, FaEye } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaSort, FaSortUp, FaSortDown, FaEye, FaFileImport } from 'react-icons/fa';
 import { carService, categoryService } from '../../services';
 import { useApp } from '../../context/AppContext';
 import ImageUploader from '../../components/ui/ImageUploader';
+import ImportModal from '../../components/modals/ImportModal';
 
 const AdminCars = () => {
   const { formatCurrency, addNotification } = useApp();
@@ -21,7 +22,7 @@ const AdminCars = () => {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     name: '', categoryId: '', price: '', manufactureYear: '',
-    color: '', engine: '', transmission: '', seats: '', images: [], description: '',
+    color: '', engine: '', transmission: '', seats: '', images: [], imageUrls: '', description: '',
   });
   const [error, setError] = useState(null);
   const [selectedCar, setSelectedCar] = useState(null);
@@ -38,6 +39,7 @@ const AdminCars = () => {
   const [size, setSize] = useState(10);
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortDir, setSortDir] = useState('DESC');
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     fetchCars();
@@ -200,6 +202,7 @@ const AdminCars = () => {
   };
 
   const handleEdit = (car) => {
+    const imageUrls = car.images ? car.images.join(', ') : '';
     setFormData({
       name: car.name,
       categoryId: car.categoryId || '',
@@ -210,6 +213,7 @@ const AdminCars = () => {
       transmission: car.transmission,
       seats: car.seats,
       images: car.images || [],
+      imageUrls: imageUrls,
       description: car.description,
     });
     setEditingId(car.id);
@@ -227,6 +231,7 @@ const AdminCars = () => {
       transmission: '',
       seats: '',
       images: [],
+      imageUrls: '',
       description: '',
     });
     setEditingId(null);
@@ -248,16 +253,64 @@ const AdminCars = () => {
     setShowDetail(true);
   };
 
+  const handleImport = async (importData) => {
+    try {
+      // Lấy danh sách categories để map tên thành ID
+      const categoriesResponse = await categoryService.getAllCategories();
+      const categories = categoriesResponse.data || [];
+
+      const result = await carService.importCars(importData, categories);
+
+      if (result.data.errors.length > 0) {
+        // Hiển thị chi tiết lỗi
+        const errorMessage = result.data.errors.slice(0, 5).map(err => 
+          `Dòng ${err.row}: ${err.message}`
+        ).join('\n');
+        
+        addNotification({
+          type: 'warning',
+          title: 'Import hoàn tất với lỗi',
+          message: `${result.message}\n\nMột số lỗi:\n${errorMessage}${result.data.errors.length > 5 ? '\n...' : ''}`
+        });
+      } else {
+        addNotification({
+          type: 'success',
+          title: 'Import thành công',
+          message: result.message
+        });
+      }
+
+      // Refresh danh sách xe
+      fetchCars();
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      addNotification({
+        type: 'error',
+        title: 'Lỗi Import',
+        message: error.message || 'Có lỗi xảy ra khi import dữ liệu'
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Quản Lý Ô Tô</h1>
-        <button
-          onClick={() => (showForm ? resetForm() : setShowForm(true))}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-semibold"
-        >
-          <FaPlus /> {showForm ? 'Hủy' : 'Thêm Ô Tô'}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition font-semibold"
+          >
+            <FaFileImport /> Import Excel/CSV
+          </button>
+          <button
+            onClick={() => (showForm ? resetForm() : setShowForm(true))}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-semibold"
+          >
+            <FaPlus /> {showForm ? 'Hủy' : 'Thêm Ô Tô'}
+          </button>
+        </div>
       </div>
 
       {/* Filter Component */}
@@ -496,11 +549,19 @@ const AdminCars = () => {
                 Hình Ảnh Xe
               </label>
               <ImageUploader
+                key={`image-uploader-${editingId || 'new'}-${formData.imageUrls}`}
                 images={formData.images}
-                onImagesChange={(newImages) => setFormData({ ...formData, images: newImages })}
+                onImagesChange={(newImages) => {
+                  setFormData({ 
+                    ...formData, 
+                    images: newImages,
+                    imageUrls: newImages.join(', ')
+                  });
+                }}
                 folder="cars"
                 multiple={true}
                 maxImages={10}
+                initialUrlInput={formData.imageUrls}
               />
             </div>
 
@@ -792,6 +853,16 @@ const AdminCars = () => {
           </div>
         </div>
       )}
+
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleImport}
+        title="Import Dữ Liệu Ô Tô"
+        templateColumns={carService.getImportTemplate().columns}
+        sampleData={carService.getImportTemplate().sampleData}
+      />
     </div>
   );
 };
