@@ -1,18 +1,13 @@
-import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
-import cartService from '../services/cartService';
 
 const CartPage = () => {
-  const { items, totalAmount, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, totalAmount, updateQuantity, removeItem } = useCart();
   const { isAuthenticated } = useAuth();
   const { formatCurrency } = useApp();
   const navigate = useNavigate();
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(null);
 
   const formatPrice = (price) => {
     return formatCurrency(price);
@@ -34,48 +29,12 @@ const CartPage = () => {
     }
   };
 
-  const handleCheckout = async () => {
+  const handleProceedToCheckout = () => {
     if (!isAuthenticated) {
-      navigate('/login', { state: { from: { pathname: '/cart' } } });
+      navigate('/login', { state: { from: { pathname: '/checkout' } } });
       return;
     }
-
-    if (!deliveryAddress.trim()) {
-      setError('Vui lòng nhập địa chỉ giao hàng');
-      return;
-    }
-
-    if (items.length === 0) {
-      setError('Giỏ hàng trống');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      setError(null);
-
-      const orderData = {
-        deliveryAddress: deliveryAddress,
-        paymentMethod: 'COD', // Default to cash on delivery
-        items: items.map((item) => ({
-          carId: item.id,
-          quantity: item.quantity,
-        })),
-      };
-
-      const response = await cartService.createOrder(orderData);
-
-      if (response.success) {
-        clearCart();
-        alert('Đặt hàng thành công!');
-        navigate('/orders');
-      }
-    } catch (err) {
-      console.error('Error creating order:', err);
-      setError(err.message || 'Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigate('/checkout');
   };
 
   if (items.length === 0) {
@@ -106,12 +65,6 @@ const CartPage = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">Giỏ Hàng</h1>
-
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
@@ -215,26 +168,15 @@ const CartPage = () => {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
               <h2 className="text-xl font-bold text-gray-800 mb-6">
-                Thông Tin Đơn Hàng
+                Tóm Tắt Đơn Hàng
               </h2>
-
-              {/* Delivery Address */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Địa chỉ giao hàng <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập địa chỉ giao hàng đầy đủ..."
-                  required
-                />
-              </div>
 
               {/* Summary */}
               <div className="space-y-3 mb-6">
+                <div className="flex justify-between text-gray-600">
+                  <span>Số lượng sản phẩm:</span>
+                  <span className="font-semibold">{items.length}</span>
+                </div>
                 <div className="flex justify-between text-gray-600">
                   <span>Tạm tính:</span>
                   <span className="font-semibold">{formatPrice(totalAmount)}</span>
@@ -254,40 +196,10 @@ const CartPage = () => {
               {/* Action Buttons */}
               <div className="space-y-3">
                 <button
-                  onClick={handleCheckout}
-                  disabled={isSubmitting}
-                  className={`w-full font-semibold py-3 rounded-lg transition ${
-                    isSubmitting
-                      ? 'bg-blue-400 cursor-not-allowed text-white'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
+                  onClick={handleProceedToCheckout}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
                 >
-                  {isSubmitting ? (
-                    <div className="flex items-center justify-center">
-                      <svg
-                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Đang xử lý...
-                    </div>
-                  ) : (
-                    'Đặt hàng'
-                  )}
+                  Tiến hành thanh toán
                 </button>
                 <Link
                   to="/cars"
@@ -301,9 +213,9 @@ const CartPage = () => {
               <div className="mt-6 text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
                 <p className="font-semibold mb-2">Lưu ý:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Đơn hàng sẽ được xác nhận trong 24h</li>
-                  <li>Phí vận chuyển sẽ được tính dựa trên địa chỉ</li>
-                  <li>Hỗ trợ thanh toán khi nhận hàng</li>
+                  <li>Kiểm tra kỹ thông tin trước khi thanh toán</li>
+                  <li>Phí vận chuyển sẽ được tính ở bước tiếp theo</li>
+                  <li>Hỗ trợ nhiều phương thức thanh toán</li>
                 </ul>
               </div>
             </div>

@@ -27,6 +27,12 @@ public class DriverTestRequest {
 
     private String notes;
 
+    // Payment fields
+    private BigDecimal depositAmount;
+    private String paymentMethod; // VNPAY or SHOWROOM
+    private String paymentId;
+    private String paymentStatus;
+
     // Dùng cho admin khi tạo lịch thay khách
     private String userId;
     private String customerName;

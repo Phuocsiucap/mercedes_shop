@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   FaHome, FaCar, FaUsers, FaShoppingCart, 
-  FaChartBar, FaList, FaBars, FaTimes, FaCalendarAlt 
+  FaChartBar, FaList, FaBars, FaTimes, FaCalendarAlt, FaCreditCard 
 } from 'react-icons/fa';
 
 /**
@@ -17,6 +17,7 @@ const AdminLayout = ({ children, activeTab, onTabChange }) => {
     { id: 'cars', label: 'Quản Lý Xe', icon: FaCar },
     { id: 'users', label: 'Người Dùng', icon: FaUsers },
     { id: 'orders', label: 'Đơn Hàng', icon: FaShoppingCart },
+    { id: 'payments', label: 'Giao Dịch', icon: FaCreditCard },
     { id: 'categories', label: 'Danh Mục', icon: FaList },
     { id: 'test-drives', label: 'Lịch Lái Thử', icon: FaCalendarAlt },
     { id: 'reports', label: 'Báo Cáo', icon: FaChartBar },

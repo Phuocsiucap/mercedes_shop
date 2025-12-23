@@ -23,6 +23,7 @@ const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const CarsPage = lazy(() => import("./pages/CarsPage"));
 const CarDetailPage = lazy(() => import("./pages/CarDetailPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const FavoritesPage = lazy(() => import("./pages/FavoritesPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
@@ -31,10 +32,13 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminCars = lazy(() => import("./pages/admin/AdminCars"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminOrders = lazy(() => import("./pages/admin/AdminOrders"));
+const AdminPayments = lazy(() => import("./pages/admin/AdminPayments"));
 const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
 const AdminTestDrive = lazy(() => import("./pages/admin/AdminTestDrive"));
 const TestDrivePage = lazy(() => import("./pages/TestDrivePage"));
+const VNPayReturnPage = lazy(() => import("./pages/VNPayReturnPage"));
+const TestDrivePaymentReturnPage = lazy(() => import("./pages/TestDrivePaymentReturnPage"));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -91,6 +95,7 @@ const AdminPageWrapper = ({ children, activeTab }) => {
       'cars': '/admin/cars',
       'users': '/admin/users',
       'orders': '/admin/orders',
+      'payments': '/admin/payments',
       'categories': '/admin/categories',
       'reports': '/admin/reports',
       'test-drives': '/admin/test-drives'
@@ -234,6 +239,42 @@ function App() {
                 </Layout>
               }
             />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <CheckoutPage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vnpay-return"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <VNPayReturnPage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/test-drive-payment-return"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <TestDrivePaymentReturnPage />
+                    </Suspense>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
             {/* Protected Routes */}
             <Route
@@ -341,6 +382,18 @@ function App() {
                   <Suspense fallback={<LoadingSpinner />}>
                     <AdminPageWrapper activeTab="orders">
                       <AdminOrders />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/payments"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="payments">
+                      <AdminPayments />
                     </AdminPageWrapper>
                   </Suspense>
                 </AdminRoute>
