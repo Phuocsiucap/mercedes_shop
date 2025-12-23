@@ -104,7 +104,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         // Generate JWT token
-        String jwt = tokenProvider.generateTokenFromUserId(savedUser.getId());
+        String jwt = tokenProvider.generateTokenFromUser(savedUser);
 
         return new AuthResponse(
             jwt,
@@ -122,7 +122,7 @@ public class AuthService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        String jwt = tokenProvider.generateTokenFromUserId(user.getId());
+        String jwt = tokenProvider.generateTokenFromUser(user);
 
         return new AuthResponse(
             jwt,
@@ -213,7 +213,7 @@ public class AuthService {
         }
 
         // Generate JWT token
-        String jwt = tokenProvider.generateTokenFromUserId(user.getId());
+        String jwt = tokenProvider.generateTokenFromUser(user);
 
         return new AuthResponse(
             jwt,

@@ -261,7 +261,9 @@ export const roleValidator = {
    * @returns {boolean} True if user has ADMIN role
    */
   isAdmin() {
-    return this.hasRole('ADMIN');
+    const user = this.getCurrentUser();
+    // Handle both "ADMIN" and "ROLE_ADMIN" formats
+    return user && (user.role === 'ADMIN' || user.role === 'ROLE_ADMIN');
   },
 
   /**
