@@ -34,6 +34,9 @@ export { default as driverTestService } from './driverTestService.js';
 // Admin Service
 export { default as adminService } from './adminService.js';
 
+// Payment Service
+export { default as paymentService } from './paymentService.js';
+
 // Utility Services
 export { default as uploadService } from './uploadService.js';
 export { default as exportService } from './exportService.js';

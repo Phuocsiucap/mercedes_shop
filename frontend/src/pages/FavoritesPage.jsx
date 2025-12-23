@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import userService from '../services/userService';
+import favoriteService from '../services/favoriteService';
 import { useApp } from '../context/AppContext';
 
 const FavoritesPage = () => {
@@ -16,7 +16,7 @@ const FavoritesPage = () => {
   const fetchFavorites = async () => {
     try {
       setLoading(true);
-      const response = await userService.getFavorites();
+      const response = await favoriteService.getMyFavorites();
       setFavorites(response.data || []);
       setError(null);
     } catch (err) {
@@ -30,8 +30,8 @@ const FavoritesPage = () => {
   const handleRemove = async (carId) => {
     if (window.confirm('Bạn có chắc muốn xóa xe này khỏi danh sách yêu thích?')) {
       try {
-        await userService.removeFromFavorites(carId);
-        setFavorites(favorites.filter((fav) => fav.car?.id !== carId));
+        await favoriteService.removeFavoriteByCarId(carId);
+        setFavorites(favorites.filter((fav) => fav.carId !== carId));
       } catch (err) {
         alert('Có lỗi xảy ra khi xóa');
       }
@@ -84,11 +84,11 @@ const FavoritesPage = () => {
                 key={favorite.id}
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition"
               >
-                <Link to={`/cars/${favorite.car?.id}`} className="block">
+                <Link to={`/cars/${favorite.carId}`} className="block">
                   <div className="relative h-48 bg-gray-200">
                     <img
-                      src={favorite.car?.image || '/placeholder-car.jpg'}
-                      alt={favorite.car?.name}
+                      src={favorite.carImage || '/placeholder-car.jpg'}
+                      alt={favorite.carName}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         e.target.src = 'data:image/svg+xml;base64,' + btoa(`
@@ -102,23 +102,23 @@ const FavoritesPage = () => {
                   </div>
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                      {favorite.car?.name}
+                      {favorite.carName || 'Không có tên'}
                     </h3>
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                      <span>Màu: {favorite.car?.color}</span>
-                      <span>{favorite.car?.seats} chỗ</span>
+                      <span>Màu: {favorite.carColor || 'N/A'}</span>
+                      <span>{favorite.carSeats || 'N/A'} chỗ</span>
                     </div>
                     <p className="text-xl font-bold text-blue-600 mb-2">
-                      {formatPrice(favorite.car?.price)}
+                      {formatPrice(favorite.carPrice)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Đã thêm: {new Date(favorite.createdAt).toLocaleDateString('vi-VN')}
+                      Đã thêm: {favorite.addedAt ? new Date(favorite.addedAt).toLocaleDateString('vi-VN') : 'N/A'}
                     </p>
                   </div>
                 </Link>
                 <div className="p-4 border-t">
                   <button
-                    onClick={() => handleRemove(favorite.car?.id)}
+                    onClick={() => handleRemove(favorite.carId)}
                     className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-lg transition"
                   >
                     Xóa khỏi yêu thích

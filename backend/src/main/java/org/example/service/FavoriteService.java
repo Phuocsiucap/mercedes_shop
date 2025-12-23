@@ -142,6 +142,8 @@ public class FavoriteService {
         response.setCarId(favorite.getCar().getId());
         response.setCarName(favorite.getCar().getName());
         response.setCarPrice(favorite.getCar().getPrice());
+        response.setCarColor(favorite.getCar().getColor());
+        response.setCarSeats(favorite.getCar().getSeats());
         List<String> images = favorite.getCar().getImages();
         response.setCarImage(images != null && !images.isEmpty() ? images.get(0) : null);
         response.setAddedAt(favorite.getAddedAt());

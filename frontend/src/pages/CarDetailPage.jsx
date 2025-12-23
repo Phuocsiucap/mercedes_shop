@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import carService from '../services/carService';
+import favoriteService from '../services/favoriteService';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -31,6 +32,13 @@ const CarDetailPage = () => {
     // Reset scroll position when car changes
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]);
+
+  // Check favorite status when authenticated
+  useEffect(() => {
+    if (isAuthenticated && id) {
+      checkFavoriteStatus();
+    }
+  }, [id, isAuthenticated]);
 
   // Fetch related cars when car data is loaded
   useEffect(() => {
@@ -120,12 +128,35 @@ const CarDetailPage = () => {
     }
   };
 
+  const checkFavoriteStatus = async () => {
+    try {
+      const response = await favoriteService.checkFavorite(id);
+      setIsFavorited(response.data === true);
+    } catch (err) {
+      console.error('Error checking favorite status:', err);
+    }
+  };
+
   const handleToggleFavorite = async () => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
-    setIsFavorited(!isFavorited);
+    
+    try {
+      if (isFavorited) {
+        await favoriteService.removeFavoriteByCarId(id);
+        setIsFavorited(false);
+        alert('Đã xóa khỏi danh sách yêu thích!');
+      } else {
+        await favoriteService.addFavorite(id);
+        setIsFavorited(true);
+        alert('Đã thêm vào danh sách yêu thích!');
+      }
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+      alert(err.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
+    }
   };
 
   const handleSubmitReview = async (e) => {
