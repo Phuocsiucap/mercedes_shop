@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
-import adminService from '../../services/adminService';
-import { useAuth } from '../../context/AuthContext';
+import { categoryService } from '../../services';
 import { useApp } from '../../context/AppContext';
 import ImageUploader from '../../components/ui/ImageUploader';
 
@@ -25,7 +24,7 @@ const AdminCategories = () => {
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      const response = await adminService.getAllCategories();
+      const response = await categoryService.getAllCategories();
       setCategories(response.data || []);
       setError(null);
     } catch (err) {
@@ -54,7 +53,7 @@ const AdminCategories = () => {
     try {
       if (editingId) {
         console.log('Updating category:', editingId, formData); // Debug log
-        await adminService.updateCategory(editingId, formData);
+        await categoryService.updateCategory(editingId, formData);
         addNotification({
           type: 'success',
           title: 'Thành công',
@@ -62,7 +61,7 @@ const AdminCategories = () => {
         });
       } else {
         console.log('Creating category:', formData); // Debug log
-        await adminService.createCategory(formData);
+        await categoryService.createCategory(formData);
         addNotification({
           type: 'success',
           title: 'Thành công',
@@ -97,7 +96,7 @@ const AdminCategories = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Bạn chắc chắn muốn xóa?')) {
       try {
-        await adminService.deleteCategory(id);
+        await categoryService.deleteCategory(id);
         addNotification({
           type: 'success',
           title: 'Thành công',

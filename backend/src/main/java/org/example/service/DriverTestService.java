@@ -144,9 +144,15 @@ public class DriverTestService {
     public Page<DriverTestResponse> getAllTestDrives(int page, int size, String sortBy, 
             String sortDir, String keyword, String status) {
         
-        Sort sort = sortDir.equalsIgnoreCase("ASC") 
-                ? Sort.by(sortBy).ascending() 
-                : Sort.by(sortBy).descending();
+        // Validate sortBy field - default to createdAt if invalid
+        String validSortBy = sortBy;
+        if (sortBy == null || sortBy.isEmpty()) {
+            validSortBy = "createdAt";
+        }
+        
+        Sort sort = sortDir != null && sortDir.equalsIgnoreCase("ASC") 
+                ? Sort.by(validSortBy).ascending() 
+                : Sort.by(validSortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<DriverTest> testDrives;

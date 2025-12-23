@@ -37,7 +37,7 @@ const AdminTestDrive = () => {
   const fetchTestDrives = async () => {
     try {
       setTestDrives(prev => ({ ...prev, loading: true, error: null }));
-      const params = { ...filters, page, size, sortBy, sortDir };
+      const params = { ...filters, page, size, sortBy, sortDir: sortDir.toLowerCase() };
       const response = await adminService.getAllTestDrives(params);
       setTestDrives(prev => ({
         ...prev, loading: false,

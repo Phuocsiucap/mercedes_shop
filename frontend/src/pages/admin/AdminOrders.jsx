@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaEye, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
-import adminService from '../../services/adminService';
-import { useAuth } from '../../context/AuthContext';
+import { orderService } from '../../services';
 import { useApp } from '../../context/AppContext';
 
 const AdminOrders = () => {
@@ -31,8 +30,7 @@ const AdminOrders = () => {
   const fetchOrders = async () => {
     try {
       setOrders(prev => ({ ...prev, loading: true, error: null }));
-      const params = { ...filters, page, size, sortBy, sortDir };
-      const response = await adminService.getAllOrders(params);
+      const response = await orderService.getAllOrders({ page, size, sortBy, sortDir: sortDir.toLowerCase(), ...filters });
       setOrders(prev => ({
         ...prev,
         loading: false,
@@ -54,7 +52,7 @@ const AdminOrders = () => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      await adminService.updateOrderStatus(orderId, newStatus);
+      await orderService.updateOrderStatus(orderId, newStatus);
       addNotification({
         type: 'success',
         title: 'Thành công',

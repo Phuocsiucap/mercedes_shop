@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaEdit, FaTrash, FaPlus, FaSort, FaSortUp, FaSortDown, FaEye } from 'react-icons/fa';
-import adminService from '../../services/adminService';
-import { useAuth } from '../../context/AuthContext';
+import { carService, categoryService } from '../../services';
 import { useApp } from '../../context/AppContext';
 import ImageUploader from '../../components/ui/ImageUploader';
 
@@ -41,8 +40,22 @@ const AdminCars = () => {
   const fetchCars = async () => {
     try {
       setCars(prev => ({ ...prev, loading: true, error: null }));
-      const params = { ...filters, page, size, sortBy, sortDir };
-      const response = await adminService.getAllCars(params);
+      
+      // Sử dụng advancedSearch nếu có filter, ngược lại dùng getAllCars
+      const hasFilters = filters.keyword || filters.categoryId || filters.minPrice || filters.maxPrice || filters.year || filters.color;
+      
+      const params = {
+        page,
+        size,
+        sortBy,
+        sortDir: sortDir.toLowerCase(),
+        ...filters
+      };
+      
+      const response = hasFilters 
+        ? await carService.advancedSearch(params)
+        : await carService.getAllCars(params);
+        
       setCars(prev => ({
         ...prev,
         loading: false,
@@ -64,7 +77,7 @@ const AdminCars = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await adminService.getAllCategories();
+      const response = await categoryService.getAllCategories();
       setCategories(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -95,14 +108,14 @@ const AdminCars = () => {
       };
 
       if (editingId) {
-        await adminService.updateCar(editingId, submitData);
+        await carService.updateCar(editingId, submitData);
         addNotification({
           type: 'success',
           title: 'Thành công',
           message: 'Cập nhật xe thành công'
         });
       } else {
-        await adminService.createCar(submitData);
+        await carService.createCar(submitData);
         addNotification({
           type: 'success',
           title: 'Thành công',
@@ -127,7 +140,7 @@ const AdminCars = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Bạn chắc chắn muốn xóa?')) {
       try {
-        await adminService.deleteCar(id);
+        await carService.deleteCar(id);
         addNotification({
           type: 'success',
           title: 'Thành công',
@@ -145,16 +158,6 @@ const AdminCars = () => {
     }
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    setPage(0);
-  };
-
-  const handleSearch = (searchTerm) => {
-    setFilters({ ...filters, keyword: searchTerm });
-    setPage(0);
-  };
-
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortDir(sortDir === 'ASC' ? 'DESC' : 'ASC');
@@ -167,11 +170,6 @@ const AdminCars = () => {
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-  };
-
-  const handleSizeChange = (newSize) => {
-    setSize(newSize);
-    setPage(0);
   };
 
   const handleEdit = (car) => {
@@ -235,24 +233,75 @@ const AdminCars = () => {
         </button>
       </div>
 
-      {/* Filter Component - Simplified for now */}
+      {/* Filter Component */}
       <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex gap-4 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <input
             type="text"
             placeholder="Tìm kiếm theo tên xe..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onChange={(e) => handleSearch(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={filters.keyword || ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, keyword: e.target.value || undefined }))}
+            onKeyDown={(e) => e.key === 'Enter' && setPage(0)}
           />
           <select
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onChange={(e) => handleFilterChange({ categoryId: e.target.value })}
+            value={filters.categoryId || ''}
+            onChange={(e) => {
+              setFilters(prev => ({ ...prev, categoryId: e.target.value || undefined }));
+              setPage(0);
+            }}
           >
             <option value="">Tất cả danh mục</option>
             {categories.map(cat => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}
           </select>
+          <input
+            type="number"
+            placeholder="Giá từ..."
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={filters.minPrice || ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value ? Number(e.target.value) : undefined }))}
+          />
+          <input
+            type="number"
+            placeholder="Giá đến..."
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={filters.maxPrice || ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value ? Number(e.target.value) : undefined }))}
+          />
+        </div>
+        <div className="flex gap-4 mt-4 items-center">
+          <input
+            type="number"
+            placeholder="Năm sản xuất..."
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+            value={filters.year || ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value ? Number(e.target.value) : undefined }))}
+          />
+          <input
+            type="text"
+            placeholder="Màu sắc..."
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+            value={filters.color || ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, color: e.target.value || undefined }))}
+          />
+          <button
+            onClick={() => setPage(0)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold"
+          >
+            Tìm kiếm
+          </button>
+          <button
+            onClick={() => {
+              setFilters({});
+              setPage(0);
+            }}
+            className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition font-semibold"
+          >
+            Xóa bộ lọc
+          </button>
         </div>
       </div>
 
@@ -464,9 +513,7 @@ const AdminCars = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Đánh Giá
                   </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
-                    Đơn Hàng
-                  </th>
+                 
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-800">
                     Hành Động
                   </th>
@@ -487,7 +534,7 @@ const AdminCars = () => {
                     <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                        {car.categoryName || '-'}
+                        {car.category.name || '-'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
@@ -503,11 +550,7 @@ const AdminCars = () => {
                         <span className="text-gray-400">({car.reviewCount || 0})</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                        {car.totalOrders || 0} đơn
-                      </span>
-                    </td>
+                    
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
                         <button
