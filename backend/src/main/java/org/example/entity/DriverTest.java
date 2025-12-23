@@ -38,6 +38,12 @@ public class DriverTest {
     private LocalDateTime testDriveTime;
 
     private TestDriveStatus status;
+    
+    private String paymentId;  // ID của payment record
+    
+    private String paymentStatus;  // PENDING, SUCCESS, FAILED
+    
+    private BigDecimal depositAmount;  // Số tiền đặt cọc (1% giá xe)
 
     private String notes;
 

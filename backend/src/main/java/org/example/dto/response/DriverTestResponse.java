@@ -44,6 +44,11 @@ public class DriverTestResponse {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+    
+    // Payment fields
+    private String paymentId;
+    private String paymentStatus;
+    private BigDecimal depositAmount;
 
     // Thông tin bổ sung
     private String carImage;
@@ -68,6 +73,9 @@ public class DriverTestResponse {
                 .notes(driverTest.getNotes())
                 .createdAt(driverTest.getCreatedAt())
                 .updatedAt(driverTest.getUpdatedAt())
+                .paymentId(driverTest.getPaymentId())
+                .paymentStatus(driverTest.getPaymentStatus())
+                .depositAmount(driverTest.getDepositAmount())
                 .build();
 
         // Set status text

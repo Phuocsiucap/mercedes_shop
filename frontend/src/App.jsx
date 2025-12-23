@@ -40,6 +40,8 @@ const TestDrivePage = lazy(() => import("./pages/TestDrivePage"));
 const GitHubCallbackPage = lazy(() => import("./pages/GitHubCallbackPage"));
 const VNPayReturnPage = lazy(() => import("./pages/VNPayReturnPage"));
 const TestDrivePaymentReturnPage = lazy(() => import("./pages/TestDrivePaymentReturnPage"));
+const VNPayReturnPage = lazy(() => import("./pages/VNPayReturnPage"));
+const TestDrivePaymentReturnPage = lazy(() => import("./pages/TestDrivePaymentReturnPage"));
 
 // Loading component
 const LoadingSpinner = () => (

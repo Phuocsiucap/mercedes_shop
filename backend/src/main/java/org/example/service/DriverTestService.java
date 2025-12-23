@@ -72,6 +72,11 @@ public class DriverTestService {
         driverTest.setTestDriveTime(request.getTestDriveTime());
         driverTest.setStatus(DriverTest.TestDriveStatus.PENDING);
         driverTest.setNotes(request.getNotes());
+        
+        // Set payment fields
+        driverTest.setDepositAmount(request.getDepositAmount());
+        driverTest.setPaymentStatus(request.getPaymentMethod() != null && request.getPaymentMethod().equals("SHOWROOM") ? "PENDING" : null);
+        
         driverTest.setCreatedAt(LocalDateTime.now());
         driverTest.setUpdatedAt(LocalDateTime.now());
 
@@ -305,6 +310,29 @@ public class DriverTestService {
 
     public long countAll() {
         return driverTestRepository.count();
+    }
+
+    /**
+     * Update payment status for test drive booking
+     */
+    public ApiResponse<DriverTestResponse> updatePaymentStatus(String bookingId, String paymentId, String paymentStatus) {
+        DriverTest driverTest = driverTestRepository.findById(bookingId).orElse(null);
+        if (driverTest == null) {
+            return ApiResponse.error("Không tìm thấy lịch lái thử");
+        }
+
+        driverTest.setPaymentId(paymentId);
+        driverTest.setPaymentStatus(paymentStatus);
+        
+        // If payment is successful, confirm the booking
+        if ("SUCCESS".equals(paymentStatus)) {
+            driverTest.setStatus(DriverTest.TestDriveStatus.CONFIRMED);
+        }
+        
+        driverTest.setUpdatedAt(LocalDateTime.now());
+        DriverTest saved = driverTestRepository.save(driverTest);
+
+        return ApiResponse.success("Cập nhật trạng thái thanh toán thành công", enrichResponse(saved));
     }
 
     // Helper method
