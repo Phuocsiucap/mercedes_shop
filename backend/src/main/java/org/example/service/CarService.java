@@ -105,30 +105,20 @@ public class CarService {
         return cars.map(this::toCarResponseWithStats);
     }
 
-    public Page<CarResponse> advancedSearch(String keyword, String categoryId, BigDecimal minPrice, 
-                                          BigDecimal maxPrice, Integer year, String color, 
-                                          int page, int size, String sortBy, String sortDir) {
-        // This would typically use MongoDB Criteria API for complex queries
-        // For now, implementing basic search logic
-        Pageable pageable = PageRequest.of(page, size, 
-            sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending());
-        
-        Page<Car> cars;
-        
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            if (minPrice != null && maxPrice != null) {
-                cars = carRepository.searchByNameAndPriceRange(keyword, minPrice, maxPrice, pageable);
-            } else {
-                cars = carRepository.findByNameContainingIgnoreCase(keyword, pageable);
-            }
-        } else if (categoryId != null && minPrice != null && maxPrice != null) {
-            Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
-            cars = carRepository.findByCategoryAndPriceRange(category, minPrice, maxPrice, pageable);
-        } else {
-            cars = carRepository.findAll(pageable);
-        }
-        
+    public Page<CarResponse> advancedSearch(String keyword, String categoryId, BigDecimal minPrice,
+                                            BigDecimal maxPrice, Integer year, String color,
+                                            int page, int size, String sortBy, String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("desc") ?
+                Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        // Gọi phương thức custom đã triển khai ở Bước 2
+        Page<Car> cars = carRepository.findCarsByFilters(
+                keyword, categoryId, minPrice, maxPrice, year, color, pageable
+        );
+
         return cars.map(this::toCarResponseWithStats);
     }
 
