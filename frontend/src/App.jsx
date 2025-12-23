@@ -35,6 +35,7 @@ const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
 const AdminTestDrive = lazy(() => import("./pages/admin/AdminTestDrive"));
 const TestDrivePage = lazy(() => import("./pages/TestDrivePage"));
+const GitHubCallbackPage = lazy(() => import("./pages/GitHubCallbackPage"));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -201,6 +202,15 @@ function App() {
               element={
                 <Suspense fallback={<LoadingSpinner />}>
                   <RegisterPage />
+                </Suspense>
+              }
+            />
+            {/* OAuth Callback Routes */}
+            <Route
+              path="/auth/github/callback"
+              element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <GitHubCallbackPage />
                 </Suspense>
               }
             />

@@ -16,7 +16,7 @@ const CarsPage = () => {
     currentPage: 0,
     totalPages: 0,
     totalElements: 0,
-    size: 12,
+    size: 10,
   });
 
   const [filters, setFilters] = useState({

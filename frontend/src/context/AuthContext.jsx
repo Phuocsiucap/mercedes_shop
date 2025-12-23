@@ -11,6 +11,28 @@ export const useAuth = () => {
   return context;
 };
 
+/**
+ * Hiển thị thông báo đăng nhập thành công
+ * @param {string} userName - Tên người dùng
+ * @param {string} loginMethod - Phương thức đăng nhập (email, Google, GitHub)
+ */
+const showLoginSuccessAlert = (userName, loginMethod = 'email') => {
+  const methodText = {
+    email: '',
+    google: ' bằng Google',
+    github: ' bằng GitHub',
+    oauth: ''
+  };
+  
+  const greeting = userName ? `Xin chào, ${userName}!` : 'Xin chào!';
+  const message = `${greeting}\nĐăng nhập${methodText[loginMethod] || ''} thành công.`;
+  
+  // Sử dụng setTimeout để đảm bảo alert hiển thị sau khi state đã cập nhật
+  setTimeout(() => {
+    alert(message);
+  }, 100);
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -93,6 +115,10 @@ export const AuthProvider = ({ children }) => {
         setToken(token);
         setUser(user);
         setIsAuthenticated(true);
+        
+        // Hiển thị thông báo đăng nhập thành công
+        showLoginSuccessAlert(fullName, 'email');
+        
         return { success: true, data: response.data };
       }
       
@@ -212,6 +238,33 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = useCallback((updatedUser) => {
     setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  }, []);
+
+  /**
+   * Login với OAuth (Google, GitHub, etc.)
+   * Xử lý hậu kỳ giống như login thường
+   * @param {Object} authData - Dữ liệu từ backend
+   * @param {string} loginMethod - Phương thức đăng nhập ('google', 'github')
+   */
+  const loginWithOAuth = useCallback((authData, loginMethod = 'oauth') => {
+    const { token: authToken, id, fullName, email, role, phoneNumber, address, verified } = authData;
+    const userData = { id, fullName, email, role, phoneNumber, address, verified };
+    
+    // Lưu vào localStorage
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    
+    // Cập nhật state
+    setToken(authToken);
+    setUser(userData);
+    setIsAuthenticated(true);
+    setError(null);
+    
+    // Hiển thị thông báo đăng nhập thành công
+    showLoginSuccessAlert(fullName, loginMethod);
+    
+    return { success: true, data: authData };
   }, []);
 
   const clearError = useCallback(() => {
@@ -225,6 +278,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     login,
+    loginWithOAuth,
     register,
     logout,
     updateUser,

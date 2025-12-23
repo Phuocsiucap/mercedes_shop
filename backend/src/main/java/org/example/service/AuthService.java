@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -40,6 +41,12 @@ public class AuthService {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private GoogleAuthService googleAuthService;
+
+    @Autowired
+    private GitHubAuthService gitHubAuthService;
 
     public AuthResponse login(@Valid LoginRequest loginRequest) {
         // Authenticate user
@@ -130,8 +137,56 @@ public class AuthService {
     }
 
     public AuthResponse oauthLogin(@Valid OAuthRequest oauthRequest) {
-        // Check if user exists by provider ID
-        Optional<User> existingUser = userRepository.findByEmail(oauthRequest.getEmail());
+        String email = oauthRequest.getEmail();
+        String name = oauthRequest.getName();
+        String providerId = oauthRequest.getProviderId();
+
+        // Verify token với Google nếu là GOOGLE provider
+        if ("GOOGLE".equals(oauthRequest.getProvider()) && oauthRequest.getToken() != null) {
+            Map<String, String> googleUserInfo = googleAuthService.verifyToken(oauthRequest.getToken());
+            
+            if (googleUserInfo == null) {
+                throw new BadRequestException("Token Google không hợp lệ hoặc đã hết hạn");
+            }
+
+            // Sử dụng thông tin từ Google (đã được verify) thay vì từ request
+            email = googleUserInfo.get("email");
+            name = googleUserInfo.get("name");
+            providerId = googleUserInfo.get("sub");
+        }
+
+        // Verify code với GitHub nếu là GITHUB provider
+        if ("GITHUB".equals(oauthRequest.getProvider()) && oauthRequest.getCode() != null) {
+            Map<String, String> githubUserInfo = gitHubAuthService.verifyCodeAndGetUserInfo(
+                oauthRequest.getCode(), 
+                oauthRequest.getRedirectUri()
+            );
+            
+            if (githubUserInfo == null) {
+                throw new BadRequestException("Code GitHub không hợp lệ hoặc đã hết hạn");
+            }
+
+            // Sử dụng thông tin từ GitHub
+            email = githubUserInfo.get("email");
+            name = githubUserInfo.get("name");
+            providerId = githubUserInfo.get("id");
+            
+            // GitHub có thể không có email public
+            if (email == null || email.isEmpty()) {
+                throw new BadRequestException("Không thể lấy email từ GitHub. Vui lòng đảm bảo email của bạn là public hoặc sử dụng phương thức đăng nhập khác.");
+            }
+        }
+
+        // Validate required fields
+        if (email == null || email.isEmpty()) {
+            throw new BadRequestException("Email không được để trống");
+        }
+        if (providerId == null || providerId.isEmpty()) {
+            throw new BadRequestException("Provider ID không được để trống");
+        }
+
+        // Check if user exists by email
+        Optional<User> existingUser = userRepository.findByEmail(email);
         
         User user;
         if (existingUser.isPresent()) {
@@ -139,20 +194,20 @@ public class AuthService {
             // Update OAuth info if needed
             if (!oauthRequest.getProvider().equals(user.getProvider())) {
                 user.setProvider(oauthRequest.getProvider());
-                user.setProviderId(oauthRequest.getProviderId());
+                user.setProviderId(providerId);
                 user.setVerified(true);
                 user = userRepository.save(user);
             }
         } else {
             // Create new OAuth user
             user = new User();
-            user.setFullName(oauthRequest.getName());
-            user.setEmail(oauthRequest.getEmail());
+            user.setFullName(name != null ? name : "User");
+            user.setEmail(email);
             user.setRole(User.Role.CUSTOMER);
             user.setCreatedAt(LocalDateTime.now());
             user.setVerified(true);
             user.setProvider(oauthRequest.getProvider());
-            user.setProviderId(oauthRequest.getProviderId());
+            user.setProviderId(providerId);
             
             user = userRepository.save(user);
         }

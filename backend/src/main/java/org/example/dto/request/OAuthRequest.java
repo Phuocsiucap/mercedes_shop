@@ -18,16 +18,17 @@ public class OAuthRequest {
     @Pattern(regexp = "^(GOOGLE|GITHUB)$", message = "Provider must be GOOGLE or GITHUB")
     private String provider; // GOOGLE or GITHUB
     
-    private String code; // Authorization code from OAuth
+    private String code; // Authorization code from OAuth (for GitHub)
     
-    private String token; // Access token from OAuth (alternative to code)
+    private String token; // Access token from OAuth (for Google)
+    
+    private String redirectUri; // Redirect URI for code exchange
     
     @Email(message = "Email must be valid")
     private String email; // User email from OAuth
     
-    @Size(min = 1, max = 100, message = "Name must be between 1 and 100 characters")
+    @Size(max = 100, message = "Name must be max 100 characters")
     private String name; // User name from OAuth
     
-    @NotBlank(message = "Provider ID is required")
-    private String providerId; // OAuth provider user ID
+    private String providerId; // OAuth provider user ID (optional, backend will get from provider)
 }
