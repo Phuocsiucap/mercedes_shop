@@ -91,6 +91,15 @@ export const CartProvider = ({ children }) => {
     try {
       validateCartItem(car, quantity);
       
+      // Xử lý ảnh: ưu tiên car.image, sau đó car.images[0], cuối cùng là placeholder
+      const getCarImage = () => {
+        if (car.image) return car.image;
+        if (car.images && car.images.length > 0) return car.images[0];
+        return '/placeholder-car.jpg';
+      };
+      
+      const carImage = getCarImage();
+      
       setItems((prevItems) => {
         const existingItem = prevItems.find((item) => item.id === car.id);
         
@@ -111,7 +120,7 @@ export const CartProvider = ({ children }) => {
             id: car.id,
             name: car.name,
             price: car.price,
-            image: car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg',
+            image: carImage,
             color: car.color,
             quantity: quantity,
             car: {
@@ -125,7 +134,7 @@ export const CartProvider = ({ children }) => {
               engine: car.engine,
               transmission: car.transmission,
               seats: car.seats,
-              image: car.images && car.images.length > 0 ? car.images[0] : '/placeholder-car.jpg',
+              image: carImage,
               description: car.description,
               averageRating: car.averageRating,
               reviewCount: car.reviewCount,

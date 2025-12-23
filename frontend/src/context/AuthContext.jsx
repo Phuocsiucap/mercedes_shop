@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import authService from '../services/authService';
+import userService from '../services/userService'; // [MỚI] Import userService để lấy thông tin profile
 
 const AuthContext = createContext(null);
 
@@ -166,9 +167,10 @@ export const AuthProvider = ({ children }) => {
       // Xóa toàn bộ dữ liệu authentication
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user'); // Đảm bảo xóa user key
       
       // Xóa toàn bộ localStorage để đảm bảo không còn dữ liệu nào
-      const keysToKeep = []; // Không giữ lại key nào
+      const keysToKeep = []; 
       const allKeys = Object.keys(localStorage);
       allKeys.forEach(key => {
         if (!keysToKeep.includes(key)) {
@@ -184,11 +186,8 @@ export const AuthProvider = ({ children }) => {
         const eqPos = c.indexOf("=");
         const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();
         if (name) {
-          // Xóa cookie cho domain hiện tại
           document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-          // Xóa cookie cho subdomain
           document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
-          // Xóa cookie cho parent domain
           const hostParts = window.location.hostname.split('.');
           if (hostParts.length > 1) {
             document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + hostParts.slice(-2).join('.');
@@ -217,8 +216,6 @@ export const AuthProvider = ({ children }) => {
       // Xóa IndexedDB (nếu có)
       if ('indexedDB' in window) {
         try {
-          // Thường các app sử dụng IndexedDB với tên cụ thể
-          // Có thể cần customize tùy theo app
           const databases = ['app_cache', 'user_data', 'cart_data'];
           databases.forEach(dbName => {
             const deleteReq = indexedDB.deleteDatabase(dbName);
@@ -229,7 +226,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
       
-      // Force reload trang để đảm bảo xóa hết cache và reset state
+      // Force reload trang
       setTimeout(() => {
         window.location.href = '/login';
       }, 100);
@@ -238,6 +235,22 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = useCallback((updatedUser) => {
     setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser)); // Cập nhật cả localStorage khi update thủ công
+  }, []);
+
+  // [MỚI] Hàm refreshUser để lấy thông tin mới nhất từ server
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await userService.getProfile();
+      if (response && response.data) {
+        // Cập nhật state
+        setUser(response.data);
+        // Cập nhật localStorage để đồng bộ
+        localStorage.setItem('user', JSON.stringify(response.data));
+      }
+    } catch (err) {
+      console.error('Failed to refresh user data:', err);
+    }
     localStorage.setItem('user', JSON.stringify(updatedUser));
   }, []);
 
@@ -282,6 +295,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateUser,
+    refreshUser, // [MỚI] Export hàm này ra để dùng ở ProfilePage
     clearError,
   };
 
