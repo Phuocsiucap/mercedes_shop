@@ -2,12 +2,13 @@ package org.example.controller;
 
 import org.example.dto.response.ApiResponse;
 import org.example.dto.response.FavoriteResponse;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.FavoriteService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,15 +22,24 @@ public class FavoriteController {
     @Autowired
     private FavoriteService favoriteService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
     /**
      * Lấy danh sách yêu thích của user
      */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<FavoriteResponse>>> getMyFavorites(
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<List<FavoriteResponse>>> getMyFavorites(Authentication authentication) {
         try {
-            List<FavoriteResponse> favorites = favoriteService.getMyFavorites(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            List<FavoriteResponse> favorites = favoriteService.getMyFavorites(user.getId());
             
             return ResponseEntity.ok(ApiResponse.<List<FavoriteResponse>>builder()
                 .success(true)
@@ -52,11 +62,11 @@ public class FavoriteController {
     @PostMapping("/car/{carId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<FavoriteResponse>> addFavorite(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String carId) {
         try {
-            ApiResponse<FavoriteResponse> response = favoriteService.addFavorite(
-                userPrincipal.getId(), carId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<FavoriteResponse> response = favoriteService.addFavorite(user.getId(), carId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<FavoriteResponse>builder()
@@ -73,11 +83,11 @@ public class FavoriteController {
     @DeleteMapping("/{favoriteId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> removeFavorite(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String favoriteId) {
         try {
-            ApiResponse<String> response = favoriteService.removeFavorite(
-                userPrincipal.getId(), favoriteId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = favoriteService.removeFavorite(user.getId(), favoriteId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
@@ -94,11 +104,11 @@ public class FavoriteController {
     @DeleteMapping("/car/{carId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> removeFavoriteByCarId(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String carId) {
         try {
-            ApiResponse<String> response = favoriteService.removeFavoriteByCarId(
-                userPrincipal.getId(), carId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = favoriteService.removeFavoriteByCarId(user.getId(), carId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
@@ -115,10 +125,11 @@ public class FavoriteController {
     @GetMapping("/car/{carId}/check")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Boolean>> checkFavorite(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String carId) {
         try {
-            boolean isFavorited = favoriteService.checkFavorite(userPrincipal.getId(), carId);
+            User user = getCurrentUser(authentication);
+            boolean isFavorited = favoriteService.checkFavorite(user.getId(), carId);
             
             return ResponseEntity.ok(ApiResponse.<Boolean>builder()
                 .success(true)

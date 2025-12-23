@@ -8,6 +8,7 @@ import org.example.entity.Order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -27,8 +28,25 @@ public class AdminOrderResponse {
     private String paymentMethod;
     private String notes;
     
+    // Order details (products)
+    private List<OrderDetailDto> orderDetails;
+    
     // Summary fields for admin
     private LocalDateTime lastStatusUpdate;
     private String assignedStaff;
     private Integer daysSinceOrder;
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class OrderDetailDto {
+        private String id;
+        private String carId;
+        private String carName;
+        private String carImage;
+        private Integer quantity;
+        private BigDecimal unitPrice;
+        private BigDecimal subtotal;
+    }
 }

@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.PaymentDTO;
 import org.example.dto.VNPayPaymentRequest;
 import org.example.entity.Payment;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.PaymentService;
 import org.example.service.VNPayService;
 import org.springframework.data.domain.Page;
@@ -28,26 +30,21 @@ public class PaymentController {
 
     private final VNPayService vnPayService;
     private final PaymentService paymentService;
-    private final org.example.service.UserService userService;
+    private final UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
 
     @PostMapping("/vnpay/create")
     public ResponseEntity<Map<String, Object>> createVNPayPayment(
             @RequestBody VNPayPaymentRequest request,
             Authentication authentication) {
         try {
-            String userId = authentication.getName();
-            
-            // Get user email from UserService
-            String userEmail = null;
-            try {
-                var user = userService.getUserProfile(userId);
-                userEmail = user.getEmail();
-            } catch (Exception e) {
-                log.warn("Could not get user email, using fallback", e);
-                userEmail = userId + "@example.com";
-            }
-            
-            String paymentUrl = vnPayService.createPaymentUrl(request, userId, userEmail);
+            User user = getCurrentUser(authentication);
+            String paymentUrl = vnPayService.createPaymentUrl(request, user.getId(), user.getEmail());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -69,20 +66,8 @@ public class PaymentController {
             @RequestBody VNPayPaymentRequest request,
             Authentication authentication) {
         try {
-            String userId = authentication.getName();
-            
-            // Get user email
-            String userEmail = null;
-            try {
-                var user = userService.getUserProfile(userId);
-                userEmail = user.getEmail();
-            } catch (Exception e) {
-                log.warn("Could not get user email, using fallback", e);
-                userEmail = userId + "@example.com";
-            }
-            
-            // Create payment URL for test drive deposit
-            String paymentUrl = vnPayService.createPaymentUrl(request, userId, userEmail);
+            User user = getCurrentUser(authentication);
+            String paymentUrl = vnPayService.createPaymentUrl(request, user.getId(), user.getEmail());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -158,8 +143,8 @@ public class PaymentController {
     @GetMapping("/my-payments")
     public ResponseEntity<Map<String, Object>> getMyPayments(Authentication authentication) {
         try {
-            String userId = authentication.getName();
-            List<PaymentDTO> payments = paymentService.getPaymentsByUserId(userId);
+            User user = getCurrentUser(authentication);
+            List<PaymentDTO> payments = paymentService.getPaymentsByUserId(user.getId());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);

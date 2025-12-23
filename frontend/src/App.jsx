@@ -35,6 +35,7 @@ const AdminOrders = lazy(() => import("./pages/admin/AdminOrders"));
 const AdminPayments = lazy(() => import("./pages/admin/AdminPayments"));
 const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminReviews = lazy(() => import("./pages/admin/AdminReviews"));
 const AdminTestDrive = lazy(() => import("./pages/admin/AdminTestDrive"));
 const TestDrivePage = lazy(() => import("./pages/TestDrivePage"));
 const GitHubCallbackPage = lazy(() => import("./pages/GitHubCallbackPage"));
@@ -100,6 +101,7 @@ const AdminPageWrapper = ({ children, activeTab }) => {
       'payments': '/admin/payments',
       'categories': '/admin/categories',
       'reports': '/admin/reports',
+      'reviews': '/admin/reviews',
       'test-drives': '/admin/test-drives'
     };
     navigate(pathMap[tab] || '/admin');
@@ -431,6 +433,18 @@ function App() {
                   <Suspense fallback={<LoadingSpinner />}>
                     <AdminPageWrapper activeTab="reports">
                       <AdminReports />
+                    </AdminPageWrapper>
+                  </Suspense>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/reviews"
+              element={
+                <AdminRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminPageWrapper activeTab="reviews">
+                      <AdminReviews />
                     </AdminPageWrapper>
                   </Suspense>
                 </AdminRoute>

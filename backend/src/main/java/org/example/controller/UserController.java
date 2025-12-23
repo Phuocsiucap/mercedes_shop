@@ -6,12 +6,12 @@ import org.example.dto.response.ApiResponse;
 import org.example.dto.response.OrderResponse;
 import org.example.dto.response.FavoriteResponse;
 import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.UserService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -26,11 +26,20 @@ public class UserController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<User>> getUserProfile(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<User>> getUserProfile(Authentication authentication) {
         try {
-            User user = userService.getUserProfile(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
             
             ApiResponse<User> response = ApiResponse.<User>builder()
                 .success(true)
@@ -54,10 +63,11 @@ public class UserController {
     @PutMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<User>> updateProfile(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody UpdateProfileRequest updateRequest) {
         try {
-            ApiResponse<User> response = userService.updateProfile(userPrincipal.getId(), updateRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<User> response = userService.updateProfile(user.getId(), updateRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<User> response = ApiResponse.<User>builder()
@@ -72,9 +82,10 @@ public class UserController {
 
     @GetMapping("/orders")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getUserOrders(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getUserOrders(Authentication authentication) {
         try {
-            List<OrderResponse> orders = userService.getUserOrders(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            List<OrderResponse> orders = userService.getUserOrders(user.getId());
             
             ApiResponse<List<OrderResponse>> response = ApiResponse.<List<OrderResponse>>builder()
                 .success(true)
@@ -98,10 +109,11 @@ public class UserController {
     @GetMapping("/orders/{orderId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<OrderResponse>> getUserOrder(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String orderId) {
         try {
-            OrderResponse order = userService.getUserOrder(userPrincipal.getId(), orderId);
+            User user = getCurrentUser(authentication);
+            OrderResponse order = userService.getUserOrder(user.getId(), orderId);
             
             ApiResponse<OrderResponse> response = ApiResponse.<OrderResponse>builder()
                 .success(true)
@@ -124,9 +136,10 @@ public class UserController {
 
     @GetMapping("/favorites")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<FavoriteResponse>>> getUserFavorites(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<List<FavoriteResponse>>> getUserFavorites(Authentication authentication) {
         try {
-            List<FavoriteResponse> favorites = userService.getUserFavorites(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            List<FavoriteResponse> favorites = userService.getUserFavorites(user.getId());
             
             ApiResponse<List<FavoriteResponse>> response = ApiResponse.<List<FavoriteResponse>>builder()
                 .success(true)
@@ -150,10 +163,11 @@ public class UserController {
     @PostMapping("/favorites")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<FavoriteResponse>> addToFavorites(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody FavoriteRequest favoriteRequest) {
         try {
-            ApiResponse<FavoriteResponse> response = userService.addToFavorites(userPrincipal.getId(), favoriteRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<FavoriteResponse> response = userService.addToFavorites(user.getId(), favoriteRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<FavoriteResponse> response = ApiResponse.<FavoriteResponse>builder()
@@ -169,10 +183,11 @@ public class UserController {
     @DeleteMapping("/favorites/{carId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> removeFromFavorites(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String carId) {
         try {
-            ApiResponse<String> response = userService.removeFromFavorites(userPrincipal.getId(), carId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = userService.removeFromFavorites(user.getId(), carId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<String> response = ApiResponse.<String>builder()
@@ -188,10 +203,11 @@ public class UserController {
     @GetMapping("/favorites/{carId}/check")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Boolean>> checkIfCarInFavorites(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String carId) {
         try {
-            boolean isInFavorites = userService.isCarInFavorites(userPrincipal.getId(), carId);
+            User user = getCurrentUser(authentication);
+            boolean isInFavorites = userService.isCarInFavorites(user.getId(), carId);
             
             ApiResponse<Boolean> response = ApiResponse.<Boolean>builder()
                 .success(true)

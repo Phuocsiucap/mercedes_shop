@@ -6,13 +6,14 @@ import org.example.dto.response.ApiResponse;
 import org.example.dto.response.CarResponse;
 import org.example.dto.response.CategoryResponse;
 import org.example.dto.response.ReviewResponse;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.CarService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -27,6 +28,15 @@ public class CarController {
 
     @Autowired
     private CarService carService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<CarResponse>>> getAllCars(
@@ -246,13 +256,13 @@ public class CarController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ReviewResponse>> addReview(
             @PathVariable String id,
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody ReviewRequest reviewRequest) {
         try {
-            // Set the car ID from path variable
+            User user = getCurrentUser(authentication);
             reviewRequest.setCarId(id);
             
-            ApiResponse<ReviewResponse> response = carService.addReview(userPrincipal.getId(), reviewRequest);
+            ApiResponse<ReviewResponse> response = carService.addReview(user.getId(), reviewRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<ReviewResponse> response = ApiResponse.<ReviewResponse>builder()
@@ -265,7 +275,6 @@ public class CarController {
         }
     }
 
-    // Admin endpoints
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CarResponse>> createCar(@Valid @RequestBody CarRequest carRequest) {

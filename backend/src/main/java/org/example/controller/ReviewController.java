@@ -3,13 +3,14 @@ package org.example.controller;
 import org.example.dto.request.ReviewRequest;
 import org.example.dto.response.ApiResponse;
 import org.example.dto.response.ReviewResponse;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.ReviewService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -23,6 +24,15 @@ public class ReviewController {
 
     @Autowired
     private ReviewService reviewService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
 
     /**
      * Lấy đánh giá theo xe
@@ -78,11 +88,11 @@ public class ReviewController {
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ReviewResponse>> createReview(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody ReviewRequest reviewRequest) {
         try {
-            ApiResponse<ReviewResponse> response = reviewService.createReview(
-                userPrincipal.getId(), reviewRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<ReviewResponse> response = reviewService.createReview(user.getId(), reviewRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<ReviewResponse>builder()
@@ -99,12 +109,12 @@ public class ReviewController {
     @PutMapping("/{reviewId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ReviewResponse>> updateReview(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String reviewId,
             @Valid @RequestBody ReviewRequest reviewRequest) {
         try {
-            ApiResponse<ReviewResponse> response = reviewService.updateReview(
-                userPrincipal.getId(), reviewId, reviewRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<ReviewResponse> response = reviewService.updateReview(user.getId(), reviewId, reviewRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<ReviewResponse>builder()
@@ -121,11 +131,11 @@ public class ReviewController {
     @DeleteMapping("/{reviewId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> deleteReview(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String reviewId) {
         try {
-            ApiResponse<String> response = reviewService.deleteReview(
-                userPrincipal.getId(), reviewId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = reviewService.deleteReview(user.getId(), reviewId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>builder()

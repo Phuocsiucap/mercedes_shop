@@ -104,13 +104,33 @@ public class AdminService {
         List<DashboardStatsResponse.RecentOrderDto> recentOrders = allOrders.stream()
             .sorted((o1, o2) -> o2.getOrderDate().compareTo(o1.getOrderDate()))
             .limit(10)
-            .map(order -> DashboardStatsResponse.RecentOrderDto.builder()
-                .id(order.getId())
-                .userName(order.getUser().getFullName())
-                .orderDate(order.getOrderDate())
-                .totalAmount(order.getTotalAmount())
-                .status(order.getStatus().toString())
-                .build())
+            .map(order -> {
+                List<OrderDetail> details = orderDetailRepository.findByOrder(order);
+                List<DashboardStatsResponse.OrderDetailDto> orderDetailDtos = details.stream()
+                    .map(detail -> DashboardStatsResponse.OrderDetailDto.builder()
+                        .carId(detail.getCar() != null ? detail.getCar().getId() : null)
+                        .carName(detail.getCar() != null ? detail.getCar().getName() : "N/A")
+                        .carImage(detail.getCar() != null && detail.getCar().getImages() != null && !detail.getCar().getImages().isEmpty() 
+                            ? detail.getCar().getImages().get(0) : null)
+                        .quantity(detail.getQuantity())
+                        .unitPrice(detail.getUnitPrice())
+                        .subtotal(detail.getUnitPrice() != null && detail.getQuantity() != null 
+                            ? detail.getUnitPrice().multiply(BigDecimal.valueOf(detail.getQuantity())) : BigDecimal.ZERO)
+                        .build())
+                    .collect(Collectors.toList());
+                
+                return DashboardStatsResponse.RecentOrderDto.builder()
+                    .id(order.getId())
+                    .userName(order.getUser().getFullName())
+                    .userEmail(order.getUser().getEmail())
+                    .orderDate(order.getOrderDate())
+                    .totalAmount(order.getTotalAmount())
+                    .status(order.getStatus().toString())
+                    .totalItems(details.size())
+                    .deliveryAddress(order.getDeliveryAddress())
+                    .orderDetails(orderDetailDtos)
+                    .build();
+            })
             .collect(Collectors.toList());
 
         return DashboardStatsResponse.builder()
@@ -300,27 +320,37 @@ public class AdminService {
 
     // Reports methods
     public ReportResponse.SalesReport getSalesReport(LocalDate fromDate, LocalDate toDate, String groupBy) {
-        // Get orders in date range, filtering out null dates
-        List<Order> orders = orderRepository.findAll().stream()
-            .filter(order -> order.getOrderDate() != null) // Filter null dates
-            .filter(order -> {
-                LocalDate orderDate = order.getOrderDate().toLocalDate();
-                return !orderDate.isBefore(fromDate) && !orderDate.isAfter(toDate);
-            })
-            .collect(Collectors.toList());
+        // Sử dụng query trực tiếp thay vì load tất cả rồi filter
+        LocalDateTime fromDateTime = fromDate.atStartOfDay();
+        LocalDateTime toDateTime = toDate.atTime(23, 59, 59);
+        
+        List<Order> orders = orderRepository.findByOrderDateBetween(fromDateTime, toDateTime);
 
         BigDecimal totalRevenue = orders.stream()
-            .filter(order -> order.getTotalAmount() != null) // Filter null amounts
+            .filter(order -> order.getTotalAmount() != null)
             .map(Order::getTotalAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         int totalOrders = orders.size();
         
-        // Get all order details for these orders in one query (more efficient)
-        List<OrderDetail> allOrderDetails = orderDetailRepository.findAll().stream()
-            .filter(detail -> detail.getOrder() != null && detail.getOrder().getId() != null) // Filter null orders
-            .filter(detail -> orders.stream().anyMatch(order -> order.getId() != null && order.getId().equals(detail.getOrder().getId())))
-            .collect(Collectors.toList());
+        // Lấy order details cho các orders - sử dụng batch query
+        Set<String> orderIdSet = orders.stream()
+            .filter(order -> order.getId() != null)
+            .map(Order::getId)
+            .collect(Collectors.toSet());
+        
+        // Lấy tất cả order details một lần, sau đó filter trong memory (nhanh hơn nhiều query)
+        List<OrderDetail> allOrderDetails;
+        if (orderIdSet.isEmpty()) {
+            allOrderDetails = List.of();
+        } else {
+            // Batch fetch - chỉ 1 query thay vì N queries
+            allOrderDetails = orderDetailRepository.findAll().stream()
+                .filter(detail -> detail.getOrder() != null && 
+                        detail.getOrder().getId() != null && 
+                        orderIdSet.contains(detail.getOrder().getId()))
+                .collect(Collectors.toList());
+        }
         
         int totalItems = allOrderDetails.size();
 
@@ -329,6 +359,9 @@ public class AdminService {
         
         // Generate top selling cars
         List<ReportResponse.TopSellingCar> topSellingCars = generateTopSellingCars(allOrderDetails);
+        
+        // Generate order status stats
+        List<ReportResponse.OrderStatusStat> orderStatusStats = generateOrderStatusStats(orders);
 
         return ReportResponse.SalesReport.builder()
             .fromDate(fromDate)
@@ -339,7 +372,34 @@ public class AdminService {
             .totalItems(totalItems)
             .salesData(salesData)
             .topSellingCars(topSellingCars)
+            .orderStatusStats(orderStatusStats)
             .build();
+    }
+    
+    private List<ReportResponse.OrderStatusStat> generateOrderStatusStats(List<Order> orders) {
+        Map<String, String> statusDisplayNames = Map.of(
+            "PENDING", "Chờ xác nhận",
+            "CONFIRMED", "Đã xác nhận", 
+            "PROCESSING", "Đang xử lý",
+            "SHIPPED", "Đang giao",
+            "DELIVERED", "Hoàn thành",
+            "CANCELLED", "Đã hủy"
+        );
+        
+        Map<String, Long> statusCounts = orders.stream()
+            .filter(order -> order.getStatus() != null)
+            .collect(Collectors.groupingBy(
+                order -> order.getStatus().toString(),
+                Collectors.counting()
+            ));
+        
+        return statusCounts.entrySet().stream()
+            .map(entry -> ReportResponse.OrderStatusStat.builder()
+                .status(entry.getKey())
+                .displayName(statusDisplayNames.getOrDefault(entry.getKey(), entry.getKey()))
+                .count(entry.getValue().intValue())
+                .build())
+            .collect(Collectors.toList());
     }
 
     private List<ReportResponse.SalesDataPoint> generateSalesDataPoints(List<Order> orders, List<OrderDetail> allOrderDetails, LocalDate fromDate, LocalDate toDate, String groupBy) {
@@ -430,6 +490,7 @@ public class AdminService {
                     .categoryName(car.getCategory() != null ? car.getCategory().getName() : "N/A")
                     .totalSold(totalSold)
                     .totalRevenue(totalRevenue)
+                    .images(car.getImages() != null ? car.getImages() : List.of())
                     .build();
             })
             .filter(car -> car.getTotalSold() > 0) // Only include cars with sales
@@ -492,8 +553,9 @@ public class AdminService {
 
     // Helper methods
     private AdminUserResponse toAdminUserResponse(User user) {
-        List<Order> userOrders = orderRepository.findByUser(user);
-        List<Review> userReviews = reviewRepository.findByUser(user);
+        // Sử dụng count thay vì load full list
+        long totalOrders = orderRepository.countByUser(user);
+        long totalReviews = reviewRepository.countByUser(user);
         
         return AdminUserResponse.builder()
             .id(user.getId())
@@ -503,8 +565,8 @@ public class AdminService {
             .address(user.getAddress())
             .role(user.getRole())
             .createdAt(user.getCreatedAt())
-            .totalOrders(userOrders != null ? userOrders.size() : 0)
-            .totalReviews(userReviews != null ? userReviews.size() : 0)
+            .totalOrders((int) totalOrders)
+            .totalReviews((int) totalReviews)
             .status("ACTIVE") // Default status
             .isEmailVerified(user.getVerified() != null ? user.getVerified() : false)
             .build();
@@ -513,16 +575,11 @@ public class AdminService {
     private AdminCarResponse toAdminCarResponse(Car car) {
         AdminCarResponse response = carMapper.toAdminCarResponse(car);
         
-        // Calculate additional admin-specific fields with null safety
-        List<OrderDetail> orderDetails = orderDetailRepository.findAll().stream()
-            .filter(detail -> detail.getCar() != null && detail.getCar().getId() != null) // Filter null cars
-            .filter(detail -> detail.getCar().getId().equals(car.getId()))
-            .collect(Collectors.toList());
-        
-        int totalOrders = orderDetails.size();
+        // Sử dụng query trực tiếp thay vì findAll() rồi filter
+        long totalOrders = orderDetailRepository.countByCar(car);
         List<Review> reviews = reviewRepository.findByCar(car);
         
-        response.setTotalOrders(totalOrders);
+        response.setTotalOrders((int) totalOrders);
         response.setCreatedAt(LocalDateTime.now()); // This should come from car entity if available
         response.setUpdatedAt(LocalDateTime.now()); // This should come from car entity if available
         
@@ -541,16 +598,43 @@ public class AdminService {
     private AdminOrderResponse toAdminOrderResponse(Order order) {
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrder(order);
         
+        List<AdminOrderResponse.OrderDetailDto> orderDetailDtos = orderDetails.stream()
+            .map(detail -> AdminOrderResponse.OrderDetailDto.builder()
+                .id(detail.getId())
+                .carId(detail.getCar() != null ? detail.getCar().getId() : null)
+                .carName(detail.getCar() != null ? detail.getCar().getName() : "N/A")
+                .carImage(detail.getCar() != null && detail.getCar().getImages() != null && !detail.getCar().getImages().isEmpty() 
+                    ? detail.getCar().getImages().get(0) : null)
+                .quantity(detail.getQuantity())
+                .unitPrice(detail.getUnitPrice())
+                .subtotal(detail.getUnitPrice() != null && detail.getQuantity() != null 
+                    ? detail.getUnitPrice().multiply(BigDecimal.valueOf(detail.getQuantity())) : BigDecimal.ZERO)
+                .build())
+            .collect(Collectors.toList());
+        
+        // Calculate days since order
+        int daysSinceOrder = 0;
+        if (order.getOrderDate() != null) {
+            daysSinceOrder = (int) java.time.temporal.ChronoUnit.DAYS.between(
+                order.getOrderDate().toLocalDate(), 
+                LocalDate.now()
+            );
+        }
+        
         return AdminOrderResponse.builder()
             .id(order.getId())
             .userId(order.getUser() != null ? order.getUser().getId() : null)
             .userName(order.getUser() != null ? order.getUser().getFullName() : "Unknown")
             .userEmail(order.getUser() != null ? order.getUser().getEmail() : "Unknown")
+            .userPhone(order.getUser() != null ? order.getUser().getPhoneNumber() : null)
             .orderDate(order.getOrderDate())
             .totalAmount(order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
             .status(order.getStatus())
             .deliveryAddress(order.getDeliveryAddress())
-            .totalItems(orderDetails != null ? orderDetails.size() : 0)
+            .totalItems(orderDetails.size())
+            .paymentMethod(order.getPaymentMethod())
+            .orderDetails(orderDetailDtos)
+            .daysSinceOrder(daysSinceOrder)
             .build();
     }
 

@@ -25,6 +25,17 @@ public class ReportResponse {
         private Integer totalItems;
         private List<SalesDataPoint> salesData;
         private List<TopSellingCar> topSellingCars;
+        private List<OrderStatusStat> orderStatusStats;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class OrderStatusStat {
+        private String status;
+        private String displayName;
+        private Integer count;
     }
 
     @Data
@@ -48,6 +59,7 @@ public class ReportResponse {
         private String categoryName;
         private Integer totalSold;
         private BigDecimal totalRevenue;
+        private List<String> images;
     }
 
     @Data

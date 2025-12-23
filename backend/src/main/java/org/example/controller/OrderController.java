@@ -4,13 +4,14 @@ import org.example.dto.request.OrderRequest;
 import org.example.dto.response.ApiResponse;
 import org.example.dto.response.OrderResponse;
 import org.example.entity.Order;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.OrderService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -25,15 +26,24 @@ public class OrderController {
     @Autowired
     private OrderService orderService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
     /**
      * Lấy danh sách đơn hàng của user
      */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getMyOrders(
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getMyOrders(Authentication authentication) {
         try {
-            List<OrderResponse> orders = orderService.getMyOrders(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            List<OrderResponse> orders = orderService.getMyOrders(user.getId());
             
             return ResponseEntity.ok(ApiResponse.<List<OrderResponse>>builder()
                 .success(true)
@@ -56,10 +66,11 @@ public class OrderController {
     @GetMapping("/{orderId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String orderId) {
         try {
-            OrderResponse order = orderService.getOrderById(userPrincipal.getId(), orderId);
+            User user = getCurrentUser(authentication);
+            OrderResponse order = orderService.getOrderById(user.getId(), orderId);
             
             return ResponseEntity.ok(ApiResponse.<OrderResponse>builder()
                 .success(true)
@@ -82,11 +93,11 @@ public class OrderController {
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody OrderRequest orderRequest) {
         try {
-            ApiResponse<OrderResponse> response = orderService.createOrder(
-                userPrincipal.getId(), orderRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<OrderResponse> response = orderService.createOrder(user.getId(), orderRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<OrderResponse>builder()
@@ -103,11 +114,11 @@ public class OrderController {
     @DeleteMapping("/{orderId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> cancelOrder(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String orderId) {
         try {
-            ApiResponse<String> response = orderService.cancelOrder(
-                userPrincipal.getId(), orderId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = orderService.cancelOrder(user.getId(), orderId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
@@ -124,12 +135,12 @@ public class OrderController {
     @GetMapping("/status/{status}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrdersByStatus(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String status) {
         try {
+            User user = getCurrentUser(authentication);
             Order.OrderStatus orderStatus = Order.OrderStatus.valueOf(status.toUpperCase());
-            List<OrderResponse> orders = orderService.getOrdersByStatus(
-                userPrincipal.getId(), orderStatus);
+            List<OrderResponse> orders = orderService.getOrdersByStatus(user.getId(), orderStatus);
             
             return ResponseEntity.ok(ApiResponse.<List<OrderResponse>>builder()
                 .success(true)

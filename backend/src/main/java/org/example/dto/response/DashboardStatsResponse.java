@@ -55,8 +55,25 @@ public class DashboardStatsResponse {
     public static class RecentOrderDto {
         private String id;
         private String userName;
+        private String userEmail;
         private LocalDateTime orderDate;
         private BigDecimal totalAmount;
         private String status;
+        private Integer totalItems;
+        private String deliveryAddress;
+        private List<OrderDetailDto> orderDetails;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OrderDetailDto {
+        private String carId;
+        private String carName;
+        private String carImage;
+        private Integer quantity;
+        private BigDecimal unitPrice;
+        private BigDecimal subtotal;
     }
 }

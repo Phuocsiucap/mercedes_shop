@@ -7,12 +7,13 @@ import org.example.dto.response.ApiResponse;
 import org.example.dto.response.CartResponse;
 import org.example.dto.response.CartItemResponse;
 import org.example.dto.response.OrderResponse;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.CartService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -26,11 +27,21 @@ public class CartController {
     @Autowired
     private CartService cartService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<CartResponse>> getUserCart(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<CartResponse>> getUserCart(Authentication authentication) {
         try {
-            CartResponse cart = cartService.getUserCart(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            CartResponse cart = cartService.getUserCart(user.getId());
             
             ApiResponse<CartResponse> response = ApiResponse.<CartResponse>builder()
                 .success(true)
@@ -54,10 +65,11 @@ public class CartController {
     @PostMapping("/items")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<CartItemResponse>> addToCart(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody AddToCartRequest addToCartRequest) {
         try {
-            ApiResponse<CartItemResponse> response = cartService.addToCart(userPrincipal.getId(), addToCartRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<CartItemResponse> response = cartService.addToCart(user.getId(), addToCartRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<CartItemResponse> response = ApiResponse.<CartItemResponse>builder()
@@ -73,12 +85,13 @@ public class CartController {
     @PutMapping("/items/{cartItemId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<CartItemResponse>> updateCartItem(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String cartItemId,
             @Valid @RequestBody UpdateCartItemRequest updateRequest) {
         try {
+            User user = getCurrentUser(authentication);
             ApiResponse<CartItemResponse> response = cartService.updateCartItem(
-                userPrincipal.getId(), cartItemId, updateRequest);
+                user.getId(), cartItemId, updateRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<CartItemResponse> response = ApiResponse.<CartItemResponse>builder()
@@ -94,10 +107,11 @@ public class CartController {
     @DeleteMapping("/items/{cartItemId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> removeFromCart(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @PathVariable String cartItemId) {
         try {
-            ApiResponse<String> response = cartService.removeFromCart(userPrincipal.getId(), cartItemId);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = cartService.removeFromCart(user.getId(), cartItemId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<String> response = ApiResponse.<String>builder()
@@ -112,9 +126,10 @@ public class CartController {
 
     @DeleteMapping("/clear")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<String>> clearCart(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<String>> clearCart(Authentication authentication) {
         try {
-            ApiResponse<String> response = cartService.clearCart(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = cartService.clearCart(user.getId());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<String> response = ApiResponse.<String>builder()
@@ -130,10 +145,11 @@ public class CartController {
     @PostMapping("/checkout")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<OrderResponse>> checkout(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody OrderRequest orderRequest) {
         try {
-            ApiResponse<OrderResponse> response = cartService.checkout(userPrincipal.getId(), orderRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<OrderResponse> response = cartService.checkout(user.getId(), orderRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<OrderResponse> response = ApiResponse.<OrderResponse>builder()
@@ -149,10 +165,11 @@ public class CartController {
     @PostMapping("/order")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody OrderRequest orderRequest) {
         try {
-            ApiResponse<OrderResponse> response = cartService.createOrderFromItems(userPrincipal.getId(), orderRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<OrderResponse> response = cartService.createOrderFromItems(user.getId(), orderRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<OrderResponse> response = ApiResponse.<OrderResponse>builder()

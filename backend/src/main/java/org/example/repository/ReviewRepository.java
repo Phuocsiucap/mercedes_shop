@@ -16,4 +16,7 @@ public interface ReviewRepository extends MongoRepository<Review, String> {
     List<Review> findByUser(User user);
 
     boolean existsByUserAndCar(User user, Car car);
+    
+    // Count reviews by user - tối ưu cho admin
+    long countByUser(User user);
 }

@@ -55,22 +55,20 @@ const AdminReports = () => {
     try {
       setLoading(true);
       setError(null);
+      
       const salesReportParams = { fromDate: dateRange.fromDate, toDate: dateRange.toDate, groupBy: 'day' };
       
-      const [salesReport, inventoryReport, ordersResponse] = await Promise.all([
-        adminService.getSalesReport(salesReportParams),
-        adminService.getInventoryReport(),
-        adminService.getAllOrders({ fromDate: dateRange.fromDate, toDate: dateRange.toDate, size: 1000, sortBy: 'orderDate', sortDir: 'desc' })
-      ]);
+      // Chỉ gọi salesReport - đã có đủ data cần thiết (totalRevenue, totalOrders, salesData, topSellingCars)
+      // Bỏ inventoryReport và getAllOrders vì không cần thiết cho trang này
+      const salesReport = await adminService.getSalesReport(salesReportParams);
 
       const processedData = {
-        totalRevenue: salesReport.data?.totalRevenue || 0,
-        totalOrders: salesReport.data?.totalOrders || 0,
-        averageRevenue: salesReport.data?.totalOrders > 0 ? (salesReport.data?.totalRevenue || 0) / salesReport.data.totalOrders : 0,
-        revenueByPeriod: salesReport.data?.salesData || [],
-        orderStatusStats: generateOrderStatusStats(salesReport.data?.salesData || [], ordersResponse.data?.content || []),
-        topCars: salesReport.data?.topSellingCars || [],
-        orders: ordersResponse.data?.content || []
+        totalRevenue: salesReport?.data?.totalRevenue || 0,
+        totalOrders: salesReport?.data?.totalOrders || 0,
+        averageRevenue: salesReport?.data?.totalOrders > 0 ? (salesReport?.data?.totalRevenue || 0) / salesReport.data.totalOrders : 0,
+        revenueByPeriod: salesReport?.data?.salesData || [],
+        orderStatusStats: salesReport?.data?.orderStatusStats || [],
+        topCars: salesReport?.data?.topSellingCars || [],
       };
       setData(processedData);
     } catch (err) {
@@ -80,21 +78,6 @@ const AdminReports = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateOrderStatusStats = (salesData, orders) => {
-    if (orders && orders.length > 0) {
-      const statusCounts = {};
-      orders.forEach(order => { statusCounts[order.status || 'UNKNOWN'] = (statusCounts[order.status || 'UNKNOWN'] || 0) + 1; });
-      const statusDisplayNames = {
-        'PENDING': 'Chờ xác nhận', 'CONFIRMED': 'Đã xác nhận', 'PROCESSING': 'Đang xử lý',
-        'SHIPPED': 'Đang giao', 'DELIVERED': 'Hoàn thành', 'CANCELLED': 'Đã hủy'
-      };
-      return Object.entries(statusCounts).map(([status, count]) => ({
-        status, displayName: statusDisplayNames[status] || status, count
-      }));
-    }
-    return [];
   };
 
   const handleDateRangeChange = (field, value) => {

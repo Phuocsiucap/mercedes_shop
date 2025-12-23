@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import carService from '../services/carService'; // Sử dụng service của bạn
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import carService from '../services/carService';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -14,8 +14,9 @@ const CarDetailPage = () => {
 
   // States
   const [car, setCar] = useState(null);
-  const [mainImage, setMainImage] = useState(''); // State cho ảnh lớn
+  const [mainImage, setMainImage] = useState('');
   const [reviews, setReviews] = useState([]);
+  const [relatedCars, setRelatedCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -27,7 +28,16 @@ const CarDetailPage = () => {
   useEffect(() => {
     fetchCarDetail();
     fetchReviews();
+    // Reset scroll position when car changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]);
+
+  // Fetch related cars when car data is loaded
+  useEffect(() => {
+    if (car?.category?.id) {
+      fetchRelatedCars(car.category.id);
+    }
+  }, [car]);
 
   const fetchCarDetail = async () => {
     try {
@@ -36,7 +46,6 @@ const CarDetailPage = () => {
       const data = response.data;
       setCar(data);
 
-      // Thiết lập ảnh chính ban đầu
       if (data.images && data.images.length > 0) {
         setMainImage(data.images[0]);
       } else {
@@ -61,22 +70,54 @@ const CarDetailPage = () => {
     }
   };
 
-  const handleAddToCart = () => {
-    if (!car) return;
-    addItem({
-      id: car.id,
-      name: car.name,
-      price: car.price,
-      image: mainImage, // Sử dụng ảnh đang hiển thị
-      color: car.color,
-      quantity: quantity,
-    });
-    alert('Đã thêm xe vào giỏ hàng!');
+  const fetchRelatedCars = async (categoryId) => {
+    try {
+      const response = await carService.getCarsByCategory(categoryId, { size: 6 });
+      // Filter out current car and limit to 5
+      const filtered = (response.data?.content || [])
+        .filter(c => c.id !== id)
+        .slice(0, 5);
+      setRelatedCars(filtered);
+    } catch (err) {
+      console.error('Error fetching related cars:', err);
+      setRelatedCars([]);
+    }
   };
 
-  const handleBuyNow = () => {
-    handleAddToCart();
-    navigate('/cart');
+  const handleAddToCart = async () => {
+    if (!car) return;
+    
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: `/cars/${id}` } } });
+      return;
+    }
+
+    try {
+      const success = await addItem(car, quantity);
+      if (success) {
+        alert('Đã thêm xe vào giỏ hàng!');
+      }
+    } catch (err) {
+      alert('Không thể thêm vào giỏ hàng. Vui lòng thử lại.');
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!car) return;
+    
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: `/cars/${id}` } } });
+      return;
+    }
+
+    try {
+      const success = await addItem(car, quantity);
+      if (success) {
+        navigate('/cart');
+      }
+    } catch (err) {
+      alert('Không thể thêm vào giỏ hàng. Vui lòng thử lại.');
+    }
   };
 
   const handleToggleFavorite = async () => {
@@ -339,6 +380,73 @@ onChange={(e) => setReviewData({ ...reviewData, content: e.target.value })}
             )}
           </div>
         </div>
+
+        {/* Related Cars Section */}
+        {relatedCars.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mt-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">
+                🚗 Xe Cùng Danh Mục
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  ({car?.category?.name || 'Cùng loại'})
+                </span>
+              </h2>
+              <Link 
+                to={`/cars?category=${car?.category?.id}`}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                Xem tất cả →
+              </Link>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {relatedCars.map((relatedCar) => (
+                <Link
+                  key={relatedCar.id}
+                  to={`/cars/${relatedCar.id}`}
+                  className="group bg-gray-50 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-300 border border-gray-100 hover:border-blue-200"
+                >
+                  {/* Image */}
+                  <div className="relative aspect-[4/3] overflow-hidden bg-gray-200">
+                    <img
+                      src={relatedCar.images?.[0] || '/placeholder-car.jpg'}
+                      alt={relatedCar.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                          <svg width="200" height="150" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100%" height="100%" fill="#f3f4f6"/>
+                            <text x="50%" y="50%" font-family="Arial" font-size="24" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                          </svg>
+                        `);
+                      }}
+                    />
+                    {relatedCar.averageRating > 0 && (
+                      <div className="absolute top-2 right-2 bg-yellow-400 text-white px-1.5 py-0.5 rounded text-xs font-semibold">
+                        ⭐ {relatedCar.averageRating.toFixed(1)}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Info */}
+                  <div className="p-3">
+                    <h3 className="font-semibold text-gray-800 text-sm line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">
+                      {relatedCar.name}
+                    </h3>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                      <span>{relatedCar.manufactureYear}</span>
+                      <span>•</span>
+                      <span>{relatedCar.seats} chỗ</span>
+                    </div>
+                    <p className="text-blue-600 font-bold text-sm">
+                      {formatCurrency(relatedCar.price)}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

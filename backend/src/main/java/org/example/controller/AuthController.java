@@ -6,12 +6,13 @@ import org.example.dto.request.ChangePasswordRequest;
 import org.example.dto.request.OAuthRequest;
 import org.example.dto.response.AuthResponse;
 import org.example.dto.response.ApiResponse;
+import org.example.entity.User;
+import org.example.repository.UserRepository;
 import org.example.service.AuthService;
-import org.example.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -24,6 +25,15 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest loginRequest) {
@@ -75,9 +85,10 @@ public class AuthController {
 
     @PostMapping("/refresh")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(Authentication authentication) {
         try {
-            AuthResponse authResponse = authService.refreshToken(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            AuthResponse authResponse = authService.refreshToken(user.getId());
             
             ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
                 .success(true)
@@ -125,10 +136,11 @@ public class AuthController {
     @PostMapping("/change-password")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> changePassword(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Authentication authentication,
             @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
         try {
-            ApiResponse<String> response = authService.changePassword(userPrincipal.getId(), changePasswordRequest);
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = authService.changePassword(user.getId(), changePasswordRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<String> response = ApiResponse.<String>builder()
@@ -177,9 +189,10 @@ public class AuthController {
 
     @PostMapping("/logout")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<String>> logout(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ResponseEntity<ApiResponse<String>> logout(Authentication authentication) {
         try {
-            ApiResponse<String> response = authService.logout(userPrincipal.getId());
+            User user = getCurrentUser(authentication);
+            ApiResponse<String> response = authService.logout(user.getId());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             ApiResponse<String> response = ApiResponse.<String>builder()
@@ -191,7 +204,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body(response);
         }
     }
-    // Endpoint to create admin user (for development/testing purposes)
+
     @PostMapping("/create-admin")
     public ResponseEntity<ApiResponse<AuthResponse>> createAdmin(
             @RequestParam String email,
@@ -217,4 +230,5 @@ public class AuthController {
 
             return ResponseEntity.badRequest().body(response);
         }
-    }}
+    }
+}

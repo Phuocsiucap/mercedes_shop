@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { 
   FaHome, FaCar, FaUsers, FaShoppingCart, 
-  FaChartBar, FaList, FaBars, FaTimes, FaCalendarAlt 
+  FaChartBar, FaList, FaBars, FaTimes, FaCalendarAlt, FaStar, FaCreditCard, FaSignOutAlt
 } from 'react-icons/fa';
 
 /**
@@ -11,13 +13,22 @@ import {
  */
 const AdminLayout = ({ children, activeTab, onTabChange }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { logout, user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const menuItems = [
     { id: 'home', label: 'Tổng Quan', icon: FaHome },
     { id: 'cars', label: 'Quản Lý Xe', icon: FaCar },
     { id: 'users', label: 'Người Dùng', icon: FaUsers },
     { id: 'orders', label: 'Đơn Hàng', icon: FaShoppingCart },
+    { id: 'payments', label: 'Thanh Toán', icon: FaCreditCard },
     { id: 'categories', label: 'Danh Mục', icon: FaList },
+    { id: 'reviews', label: 'Đánh Giá', icon: FaStar },
     { id: 'test-drives', label: 'Lịch Lái Thử', icon: FaCalendarAlt },
     { id: 'reports', label: 'Báo Cáo', icon: FaChartBar },
   ];
@@ -71,8 +82,28 @@ const AdminLayout = ({ children, activeTab, onTabChange }) => {
         </nav>
 
         {sidebarOpen && (
-          <div className="p-4 border-t border-gray-700 text-center text-gray-500 text-sm flex-shrink-0">
-            Mercedes Shop Admin
+          <div className="p-4 border-t border-gray-700 flex-shrink-0">
+            <div className="text-gray-400 text-sm mb-2 truncate">
+              {user?.email || 'Admin'}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+            >
+              <FaSignOutAlt />
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        )}
+        {!sidebarOpen && (
+          <div className="p-2 border-t border-gray-700 flex-shrink-0">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+              title="Đăng xuất"
+            >
+              <FaSignOutAlt />
+            </button>
           </div>
         )}
       </aside>

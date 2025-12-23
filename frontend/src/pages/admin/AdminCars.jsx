@@ -608,6 +608,9 @@ const AdminCars = () => {
             <table className="w-full">
               <thead className="bg-gray-100 border-b-2 border-gray-300">
                 <tr>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-800">
+                    Ảnh
+                  </th>
                   <th 
                     className="px-6 py-4 text-left text-sm font-semibold text-gray-800 cursor-pointer hover:bg-gray-200 transition"
                     onClick={() => handleSort('name')}
@@ -647,6 +650,27 @@ const AdminCars = () => {
               <tbody className="divide-y divide-gray-200">
                 {(cars?.content || []).map((car) => (
                   <tr key={car.id} className="hover:bg-blue-50 transition">
+                    <td className="px-4 py-4">
+                      {car.images && car.images.length > 0 ? (
+                        <img
+                          src={car.images[0]}
+                          alt={car.name}
+                          className="w-16 h-12 object-cover rounded border"
+                          onError={(e) => {
+                            e.target.src = 'data:image/svg+xml;base64,' + btoa(`
+                              <svg width="64" height="48" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="100%" height="100%" fill="#f3f4f6"/>
+                                <text x="50%" y="50%" font-family="Arial" font-size="10" fill="#9ca3af" text-anchor="middle" dy=".3em">🚗</text>
+                              </svg>
+                            `);
+                          }}
+                        />
+                      ) : (
+                        <div className="w-16 h-12 bg-gray-100 rounded border flex items-center justify-center text-gray-400 text-xs">
+                          🚗
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-800 font-medium">{car.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
