@@ -505,6 +505,270 @@ class CarService extends ApiService {
       throw error;
     }
   }
+
+  /**
+   * Import cars from Excel/CSV data
+   * @param {Array} carsData - Array of car objects from Excel/CSV
+   * @param {Array} categories - Available categories for mapping
+   * @returns {Promise<Object>} Import results
+   */
+  async importCars(carsData, categories = []) {
+    try {
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: []
+      };
+
+      // Create category mapping
+      const categoryMap = {};
+      categories.forEach(cat => {
+        categoryMap[cat.name.toLowerCase()] = cat.id;
+      });
+
+      // Validate and process each car
+      for (let i = 0; i < carsData.length; i++) {
+        const carData = carsData[i];
+        const rowNumber = carData._rowIndex || i + 1;
+
+        try {
+          // Validate required fields
+          const validationErrors = this.validateCarData(carData, rowNumber, categoryMap);
+          if (validationErrors.length > 0) {
+            results.failed++;
+            results.errors.push(...validationErrors);
+            continue;
+          }
+
+          // Transform data to match API format
+          const transformedData = this.transformImportData(carData, categoryMap);
+
+          // Create car
+          await this.createCar(transformedData);
+          results.success++;
+
+        } catch (error) {
+          results.failed++;
+          results.errors.push({
+            row: rowNumber,
+            field: 'general',
+            message: error.message || 'Lỗi không xác định'
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: results,
+        message: `Import hoàn tất: ${results.success} thành công, ${results.failed} thất bại`
+      };
+
+    } catch (error) {
+      throw {
+        ...error,
+        message: 'Lỗi khi import dữ liệu: ' + (error.message || 'Unknown error')
+      };
+    }
+  }
+
+  /**
+   * Validate car data from import
+   * @param {Object} carData - Car data object
+   * @param {number} rowNumber - Row number for error reporting
+   * @param {Object} categoryMap - Category name to ID mapping
+   * @returns {Array} Array of validation errors
+   */
+  validateCarData(carData, rowNumber, categoryMap = {}) {
+    const errors = [];
+
+    // Required fields validation
+    const requiredFields = [
+      { field: 'Tên xe', key: 'name' },
+      { field: 'Danh mục', key: 'categoryName' },
+      { field: 'Giá', key: 'price' }
+    ];
+
+    requiredFields.forEach(({ field, key }) => {
+      const value = carData[field] || carData[key];
+      if (!value || String(value).trim() === '') {
+        errors.push({
+          row: rowNumber,
+          field: field,
+          message: `${field} không được để trống`
+        });
+      }
+    });
+
+    // Category validation
+    const categoryName = carData['Danh mục'] || carData['categoryName'];
+    if (categoryName && !categoryMap[categoryName.toLowerCase()]) {
+      const availableCategories = Object.keys(categoryMap).join(', ');
+      errors.push({
+        row: rowNumber,
+        field: 'Danh mục',
+        message: `Danh mục "${categoryName}" không tồn tại. Các danh mục có sẵn: ${availableCategories}`
+      });
+    }
+
+    // Price validation
+    const price = carData['Giá'] || carData['price'];
+    if (price && (isNaN(price) || parseFloat(price) <= 0)) {
+      errors.push({
+        row: rowNumber,
+        field: 'Giá',
+        message: 'Giá phải là số dương'
+      });
+    }
+
+    // Year validation
+    const year = carData['Năm sản xuất'] || carData['manufactureYear'];
+    if (year && (isNaN(year) || parseInt(year) < 1900 || parseInt(year) > new Date().getFullYear() + 1)) {
+      errors.push({
+        row: rowNumber,
+        field: 'Năm sản xuất',
+        message: 'Năm sản xuất không hợp lệ'
+      });
+    }
+
+    // Seats validation
+    const seats = carData['Số chỗ ngồi'] || carData['seats'];
+    if (seats && (isNaN(seats) || parseInt(seats) < 1 || parseInt(seats) > 50)) {
+      errors.push({
+        row: rowNumber,
+        field: 'Số chỗ ngồi',
+        message: 'Số chỗ ngồi phải từ 1-50'
+      });
+    }
+
+    // Image URL validation
+    const imageUrls = carData['URL Ảnh'] || carData['imageUrls'] || carData['images'];
+    if (imageUrls && typeof imageUrls === 'string') {
+      const urls = imageUrls.split(/[,;\n]/).map(url => url.trim()).filter(url => url);
+      const invalidUrls = urls.filter(url => !this.isValidImageUrl(url));
+      
+      if (invalidUrls.length > 0) {
+        errors.push({
+          row: rowNumber,
+          field: 'URL Ảnh',
+          message: `URL ảnh không hợp lệ: ${invalidUrls.slice(0, 2).join(', ')}${invalidUrls.length > 2 ? '...' : ''}`
+        });
+      }
+    }
+
+    return errors;
+  }
+
+  /**
+   * Transform import data to API format
+   * @param {Object} carData - Raw car data from import
+   * @param {Object} categoryMap - Category name to ID mapping
+   * @returns {Object} Transformed car data
+   */
+  transformImportData(carData, categoryMap = {}) {
+    const categoryName = carData['Danh mục'] || carData['categoryName'];
+    const categoryId = categoryMap[categoryName?.toLowerCase()] || Object.values(categoryMap)[0] || '1';
+
+    // Xử lý URL ảnh
+    const imageUrls = carData['URL Ảnh'] || carData['imageUrls'] || carData['images'] || '';
+    let images = [];
+    
+    if (imageUrls && typeof imageUrls === 'string') {
+      // Tách nhiều URL bằng dấu phẩy, xuống dòng hoặc dấu chấm phẩy
+      images = imageUrls
+        .split(/[,;\n]/)
+        .map(url => url.trim())
+        .filter(url => url && this.isValidImageUrl(url));
+    }
+
+    return {
+      name: String(carData['Tên xe'] || carData['name'] || '').trim(),
+      categoryId: categoryId,
+      price: parseFloat(carData['Giá'] || carData['price'] || 0),
+      manufactureYear: parseInt(carData['Năm sản xuất'] || carData['manufactureYear'] || new Date().getFullYear()),
+      color: String(carData['Màu sắc'] || carData['color'] || '').trim(),
+      engine: String(carData['Động cơ'] || carData['engine'] || '').trim(),
+      transmission: String(carData['Hộp số'] || carData['transmission'] || '').trim(),
+      seats: parseInt(carData['Số chỗ ngồi'] || carData['seats'] || 5),
+      description: String(carData['Mô tả'] || carData['description'] || '').trim(),
+      images: images
+    };
+  }
+
+  /**
+   * Validate if URL is a valid image URL
+   * @param {string} url - URL to validate
+   * @returns {boolean} True if valid image URL
+   */
+  isValidImageUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      const validProtocols = ['http:', 'https:'];
+      const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+      
+      // Check protocol
+      if (!validProtocols.includes(urlObj.protocol)) {
+        return false;
+      }
+      
+      // Check if URL looks like an image (has extension or is from known image services)
+      const pathname = urlObj.pathname.toLowerCase();
+      const hasImageExtension = validExtensions.some(ext => pathname.includes(ext));
+      const isImageService = ['imgur.com', 'cloudinary.com', 'unsplash.com', 'pexels.com'].some(service => 
+        urlObj.hostname.includes(service)
+      );
+      
+      return hasImageExtension || isImageService;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get import template data
+   * @returns {Object} Template columns and sample data
+   */
+  getImportTemplate() {
+    return {
+      columns: [
+        'Tên xe',
+        'Danh mục', 
+        'Giá',
+        'Năm sản xuất',
+        'Màu sắc',
+        'Động cơ',
+        'Hộp số',
+        'Số chỗ ngồi',
+        'URL Ảnh',
+        'Mô tả'
+      ],
+      sampleData: [
+        [
+          'Mercedes-Benz C-Class',
+          'Sedan',
+          '1500000000',
+          '2024',
+          'Đen',
+          '2.0L Turbo',
+          'Tự động',
+          '5',
+          'https://example.com/mercedes-c-class.jpg',
+          'Sedan hạng sang với thiết kế hiện đại'
+        ],
+        [
+          'BMW X5',
+          'SUV', 
+          '2800000000',
+          '2023',
+          'Trắng',
+          '3.0L',
+          'Tự động',
+          '7',
+          'https://example.com/bmw-x5.jpg',
+          'SUV cao cấp với không gian rộng rãi'
+        ]
+      ]
+    };
+  }
 }
 
 // Export singleton instance
